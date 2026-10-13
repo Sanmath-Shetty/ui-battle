@@ -69,7 +69,7 @@ export default function Navbar({ favoritesCount = 0 }) {
         aria-label="Primary"
         className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 rounded-full border-[1.5px] border-ink bg-paper-2/85 pl-5 pr-1.5 shadow-[3px_3px_0_#1C1915] backdrop-blur-md 2xl:max-w-[1600px]"
       >
-        <a href="#top" onClick={(event) => goTo(event, 'top')} className={`flex items-center gap-2.5 rounded-full ${focusRing}`}>
+        <a href="#top" onClick={(event) => goTo(event, 'top')} className={`flex min-h-11 items-center gap-2.5 rounded-full ${focusRing}`}>
           <RadarLogo />
           <span className="text-lg font-extrabold tracking-tight text-ink">Recipe Radar</span>
         </a>

@@ -41,9 +41,10 @@ Warm editorial kitchen, like a modern cookbook. Light, printed, tactile. Not a g
 - tomato-ink (small tomato text): #A8301D. Use this for labels and links (5:1+ on paper, AA).
 - saffron (secondary accent): #F2B23A
 - basil (success, "you have it"): #2E6A3C
+- parchment (recipe sheet / modal paper): #EFE3CB
 - veg mark: #2E6A3C, non-veg mark: #9A3B1E (standard Indian square-and-dot symbol)
 
-Tailwind tokens (in `index.css`): `bg-paper`, `bg-paper-2`, `text-ink`, `text-ink-soft`, `text-tomato`, `text-tomato-ink`, `bg-saffron`, `text-basil`, `veg`, `nonveg`, `font-display`, `font-mono`.
+Tailwind tokens (in `index.css`): `bg-paper`, `bg-paper-2`, `text-ink`, `text-ink-soft`, `text-tomato`, `text-tomato-ink`, `bg-parchment`, `bg-saffron`, `text-basil`, `veg`, `nonveg`, `font-display`, `font-mono`.
 
 Fonts (Google Fonts):
 - Bricolage Grotesque: headlines (bold, tight tracking, huge) and body.
@@ -56,7 +57,9 @@ Style rules:
 - No glows, no dark gradients, no emoji. Flat colour only.
 - Hover: small lift or wobble.
 - Recipe-sheet paper: one fixed `body::after` overlay in `index.css` (feTurbulence grain, two faint fold creases, soft edge vignette). Do not add other page-wide textures.
-- Recipe cards are index cards: hand-cut edges (clip-path), a strip of saffron washi tape, a seeded tilt of up to 1.5deg that straightens on hover. See `components/hero/MatchStrip.jsx`.
+- Paper overlay sits behind all content (z-index -1), so creases never cross cards or text.
+- Recipe modal (`RecipeModal.jsx`, parts in `components/recipe-modal/`): aged crumpled sheet (crumple via feDiffuseLighting, sepia vignette, torn SVG clip-path edges, corner tape, coffee ring, ruled lines). Opens from any card via App's `openRecipe`; full-screen bottom sheet under 640px.
+- Recipe cards (hero matches and Browse) are index cards, shared in `IndexCard.jsx`: hand-cut edges (clip-path), a strip of saffron washi tape, a seeded tilt of up to 1.5deg that straightens on hover. See `components/hero/MatchStrip.jsx`.
 - Intro (`Intro.jsx`): plays once per session (sessionStorage), skipped with reduced motion, any click/key skips. Under 2s, ends in a tomato circle wipe into the hero.
 Motion: GSAP only (core, ScrollTrigger, Draggable, Flip). ease "power3.out", 0.4 to 0.8s. Respect prefers-reduced-motion.
 

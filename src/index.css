@@ -10,6 +10,8 @@
   --color-tomato-ink: #a8301d;
   --color-saffron: #f2b23a;
   --color-basil: #2e6a3c;
+  /* Aged recipe paper, the RecipeModal sheet. */
+  --color-parchment: #efe3cb;
   --color-veg: #2e6a3c;
   --color-nonveg: #9a3b1e;
   --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
@@ -18,10 +20,19 @@
 }
 
 html { background: var(--color-paper); }
-body { @apply bg-paper text-ink font-sans antialiased; }
+
+:root {
+  /* Shared paper grain (inline feTurbulence, no image files). Used by the page overlay and the recipe sheet. */
+  /* Crumple: lit turbulence (feDiffuseLighting) for creases and wrinkles; blended soft-light, background only. */
+  --paper-crumple: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='520'%20height='520'%3E%3Cfilter%20id='c'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.011%200.016'%20numOctaves='5'%20seed='11'%20stitchTiles='stitch'%20result='n'/%3E%3CfeDiffuseLighting%20in='n'%20lighting-color='%23fff'%20surfaceScale='3.6'%20diffuseConstant='1.05'%3E%3CfeDistantLight%20azimuth='235'%20elevation='58'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type='linear'%20slope='0.85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url%28%23c%29'/%3E%3C/svg%3E");
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* No body background: html carries the paper colour so the z-index -1 overlay below can sit behind all content. */
+body { @apply text-ink font-sans antialiased; }
 
 /*
- * Recipe-sheet paper: one fixed, non-interactive overlay (never repaints on scroll).
+ * Recipe-sheet paper: one fixed, non-interactive overlay (never repaints on scroll), painted *behind*
+ * all content (z-index -1) so creases never cross cards, photos or text.
  * Layers, top to bottom: feTurbulence grain, a vertical and a horizontal fold crease
  * (soft highlight line beside a slightly darker shadow line), and an edge vignette.
  * All very low alpha so ink text stays AA (checked against the darkest vignette corner).
@@ -30,10 +41,10 @@ body::after {
   content: "";
   position: fixed;
   inset: -8px;
-  z-index: 100;
+  z-index: -1;
   pointer-events: none;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    var(--paper-grain),
     linear-gradient(90deg,
       transparent calc(36% - 6px),
       rgb(255 255 255 / 0.22) calc(36% - 1px),
@@ -72,4 +83,25 @@ body::after {
 }
 [data-token][data-dragging] [data-face] {
   box-shadow: 3px 3px 0 #1c1915, 0 22px 32px -10px rgb(28 25 21 / 0.35);
+}
+
+/*
+ * Recipe sheet (RecipeModal): old crumpled recipe paper. The modal sits in the top layer above the
+ * page overlay, so it carries its own texture. Layers, top to bottom: sepia edge vignette, crumple
+ * (soft-light), a faint coffee ring, grain, then margin line + ruled lines that scroll with the text.
+ * Everything is background; text stays ink. Vignette peaks at 14% in the corners, where there is
+ * no text: ink-soft stays >= 4.6:1 and ink >= 11:1 anywhere text sits.
+ */
+.recipe-sheet {
+  background-color: var(--color-parchment);
+  background-image:
+    radial-gradient(ellipse 115% 100% at 50% 42%, transparent 60%, rgb(110 70 25 / 0.14) 100%),
+    var(--paper-crumple),
+    radial-gradient(circle at calc(100% - 4.5rem) calc(100% - 5rem), transparent 0 46px, rgb(120 72 24 / 0.07) 47px, rgb(120 72 24 / 0.13) 50px, rgb(120 72 24 / 0.05) 53px, transparent 56px),
+    var(--paper-grain),
+    linear-gradient(90deg, transparent 2.25rem, rgb(229 67 45 / 0.14) 2.25rem, rgb(229 67 45 / 0.14) calc(2.25rem + 1px), transparent calc(2.25rem + 1px)),
+    repeating-linear-gradient(to bottom, transparent 0 31px, rgb(28 25 21 / 0.07) 31px 32px);
+  background-size: 100% 100%, 520px 520px, 100% 100%, 200px 200px, 100% 100%, 100% 32px;
+  background-attachment: scroll, scroll, scroll, scroll, local, local;
+  background-blend-mode: normal, soft-light, normal, normal, normal, normal;
 }

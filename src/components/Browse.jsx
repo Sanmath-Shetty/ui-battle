@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useGSAP } from '@gsap/react'
@@ -32,12 +32,32 @@ function matchesQuery(recipe, query) {
 const label = 'font-mono text-[11px] font-medium uppercase tracking-[0.14em]'
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-tomato focus-visible:ring-offset-2 focus-visible:ring-offset-paper'
 
+/** Paper index tabs on a ruled line; one hand-drawn underline slides to the active tab. */
 function CategoryTabs({ value, onChange, counts }) {
+  const row = useRef(null)
+  const underline = useRef(null)
+
+  useEffect(() => {
+    const place = (animate) => {
+      const active = row.current?.querySelector('[aria-pressed="true"]')
+      if (!active) return
+      const to = { x: active.offsetLeft + 10, width: active.offsetWidth - 20 }
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (animate && !reduce) gsap.to(underline.current, { ...to, duration: 0.45, ease: 'power3.out' })
+      else gsap.set(underline.current, to)
+    }
+    place(true)
+    const onResize = () => place(false)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [value])
+
   return (
     <div
+      ref={row}
       role="group"
       aria-label="Filter by meal"
-      className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] md:mx-0 md:px-1 [&::-webkit-scrollbar]:hidden"
+      className="relative -mx-4 flex gap-1 overflow-x-auto border-b-2 border-ink/15 px-4 pt-2 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
     >
       {CATEGORIES.map((category) => {
         const active = category.value === value
@@ -47,17 +67,26 @@ function CategoryTabs({ value, onChange, counts }) {
             type="button"
             aria-pressed={active}
             onClick={() => onChange(category.value)}
-            className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-ink px-4 transition-[translate,box-shadow,background-color,color] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${label} ${focusRing} ${
+            className={`relative inline-flex h-12 shrink-0 items-center gap-2 rounded-t-lg border-2 border-b-0 px-4 text-sm font-semibold outline-none transition-[background-color,color,translate] duration-300 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tomato-ink ${
               active
-                ? 'translate-x-0.5 translate-y-0.5 bg-ink text-paper'
-                : 'bg-paper-2 text-ink shadow-[3px_3px_0_#1C1915] hover:-translate-y-0.5'
+                ? '-mb-[2px] border-ink/15 bg-paper-2 text-ink'
+                : 'translate-y-1 border-transparent text-ink-soft hover:translate-y-0.5 hover:bg-paper-2/60 hover:text-ink'
             }`}
           >
             {category.label}
-            <span className={`tabular-nums ${active ? 'text-paper/70' : 'text-ink-soft'}`}>{counts[category.value]}</span>
+            <span className={`font-mono text-[10px] tabular-nums ${active ? 'text-tomato-ink' : 'text-ink-soft'}`}>{counts[category.value]}</span>
           </button>
         )
       })}
+      <svg
+        ref={underline}
+        viewBox="0 0 100 8"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute bottom-1.5 left-0 h-2 w-0"
+        aria-hidden="true"
+      >
+        <path d="M2 5c16-3 30-3 48-1s34 2 48-2" fill="none" stroke="#A8301D" strokeWidth="2.4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      </svg>
     </div>
   )
 }
@@ -114,7 +143,16 @@ export default function Browse({ recipes, pantry = [], onOpenRecipe, favoriteIds
   const [query, setQuery] = useState('')
 
   const inDiet = recipes.filter((recipe) => (diet === 'all' || recipe.diet === diet) && matchesQuery(recipe, query))
-  const visible = inDiet.filter((recipe) => category === 'all' || recipe.category === category)
+  // With something in the pot, best match first (share of the recipe you have, then count).
+  // Array.sort is stable, so ties and the empty-pot case keep the default order.
+  const filtered = inDiet.filter((recipe) => category === 'all' || recipe.category === category)
+  const visible =
+    pantry.length === 0
+      ? filtered
+      : filtered
+          .map((recipe) => ({ recipe, have: recipe.ingredients.filter((item) => pantry.includes(item)).length }))
+          .sort((a, b) => b.have / b.recipe.ingredients.length - a.have / a.recipe.ingredients.length || b.have - a.have)
+          .map(({ recipe }) => recipe)
   const counts = Object.fromEntries(
     CATEGORIES.map(({ value }) => [value, value === 'all' ? inDiet.length : inDiet.filter((r) => r.category === value).length]),
   )

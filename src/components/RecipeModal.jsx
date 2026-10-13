@@ -1,225 +1,309 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import gsap from 'gsap'
+import { Draggable } from 'gsap/Draggable'
 import { useGSAP } from '@gsap/react'
 import DietMark from './DietMark.jsx'
+import IngredientChecklist from './recipe-modal/IngredientChecklist.jsx'
+import CookMode from './recipe-modal/CookMode.jsx'
+import FinishCard from './recipe-modal/FinishCard.jsx'
 
-gsap.registerPlugin(useGSAP)
+gsap.registerPlugin(Draggable, useGSAP)
 
-const DIET_LABELS = { veg: 'Veg', nonveg: 'Non-veg' }
+const DIET_LABELS = { veg: 'VEG', nonveg: 'NON-VEG' }
 
-const label = 'font-mono text-[11px] font-medium uppercase tracking-[0.14em]'
-const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-tomato focus-visible:ring-offset-2 focus-visible:ring-offset-paper-2'
-const iconButton = `flex h-11 w-11 items-center justify-center rounded-full border-[1.5px] border-ink bg-paper-2 shadow-[2px_2px_0_#1C1915] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 active:translate-y-0 ${focusRing}`
+// Torn, uneven edges on all four sides as an SVG clip-path (objectBoundingBox, so it fits any size).
+// Seeded so every sheet tears the same way; nibbles stay within ~1% of the edge.
+const TORN_PATH = (() => {
+  const nib = (i, salt) => ((Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453) % 1 + 1) % 1
+  const n = 36
+  const top = Array.from({ length: n + 1 }, (_, i) => [i / n, 0.002 + nib(i, 1) * 0.009])
+  const right = Array.from({ length: n + 1 }, (_, i) => [0.996 - nib(i, 2) * 0.006, i / n])
+  const bottom = Array.from({ length: n + 1 }, (_, i) => [1 - i / n, 0.998 - nib(i, 3) * 0.007])
+  const left = Array.from({ length: n + 1 }, (_, i) => [0.004 + nib(i, 4) * 0.006, 1 - i / n])
+  const pts = [...top, ...right, ...bottom, ...left].map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`)
+  return `M${pts.join('L')}Z`
+})()
 
-function prefersReducedMotion() {
+const TAPE_CLIP = 'polygon(0 12%, 5% 0, 95% 0, 100% 14%, 97% 34%, 100% 52%, 96% 70%, 100% 88%, 95% 100%, 5% 100%, 0 86%, 3% 66%, 0 48%, 3% 28%)'
+
+function reduced() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function IngredientChecklist({ ingredients, checked, onToggle }) {
+function isPhone() {
+  return window.matchMedia('(max-width: 639px)').matches
+}
+
+function Tape({ className }) {
   return (
-    <section aria-labelledby="modal-ingredients">
-      <div className="flex items-baseline justify-between gap-3 border-b border-ink/15 pb-2">
-        <h3 id="modal-ingredients" className="text-lg font-bold tracking-tight text-ink">Ingredients</h3>
-        <p className={`${label} tabular-nums text-ink-soft`} aria-live="polite">
-          {checked.length} of {ingredients.length} ready
-        </p>
-      </div>
-      <ul className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-1">
-        {ingredients.map((item) => {
-          const done = checked.includes(item)
-          return (
-            <li key={item}>
-              <label
-                className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border-[1.5px] px-3 text-base capitalize transition-colors duration-300 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tomato ${
-                  done ? 'border-basil bg-basil/10 text-basil' : 'border-ink/15 bg-paper text-ink hover:border-ink/40'
-                }`}
-              >
-                <input type="checkbox" checked={done} onChange={() => onToggle(item)} className="sr-only" />
-                <span
-                  aria-hidden="true"
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] ${done ? 'border-basil bg-basil text-paper-2' : 'border-ink/50 bg-paper-2'}`}
-                >
-                  {done && (
-                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="m2.5 6.2 2.3 2.3 4.7-5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </span>
-                <span className={done ? 'line-through decoration-basil/50' : ''}>{item}</span>
-              </label>
-            </li>
-          )
-        })}
-      </ul>
-    </section>
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute z-20 hidden h-7 w-28 bg-saffron/55 sm:block ${className}`}
+      style={{ clipPath: TAPE_CLIP, backgroundImage: 'repeating-linear-gradient(45deg, rgb(255 255 255 / 0.22) 0 4px, transparent 4px 9px)' }}
+    />
   )
 }
 
-function StepPlayer({ steps, step, onStep, onFinish }) {
-  const text = useRef(null)
-  const isLast = step === steps.length - 1
-
-  useGSAP(
-    () => {
-      if (prefersReducedMotion()) return
-      gsap.from(text.current, { y: 12, autoAlpha: 0, duration: 0.4, ease: 'power3.out' })
-    },
-    { dependencies: [step] },
-  )
-
+function IconButton({ label, onClick, pressed, children }) {
   return (
-    <section aria-labelledby="modal-steps" className="flex flex-col">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 id="modal-steps" className="text-lg font-bold tracking-tight text-ink">Method</h3>
-        <p className={`${label} tabular-nums text-ink-soft`}>
-          Step {step + 1} of {steps.length}
-        </p>
-      </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={pressed}
+      className="flex h-11 w-11 items-center justify-center rounded-full bg-paper-2 text-ink outline-none ring-2 ring-ink transition-transform duration-300 hover:scale-105 active:scale-95 focus-visible:ring-tomato-ink"
+    >
+      {children}
+    </button>
+  )
+}
 
-      <div
-        role="progressbar"
-        aria-label="Cooking progress"
-        aria-valuemin={1}
-        aria-valuemax={steps.length}
-        aria-valuenow={step + 1}
-        className="mt-2.5 h-2 overflow-hidden rounded-full bg-ink/10"
-      >
-        <div
-          className="h-full rounded-full bg-basil transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
-          style={{ width: `${((step + 1) / steps.length) * 100}%` }}
-        />
-      </div>
-
-      <div className="mt-4 flex min-h-36 gap-4 rounded-2xl border border-ink/15 bg-paper p-5" aria-live="polite">
-        <span className="font-display text-5xl font-extrabold leading-none tracking-tight text-tomato" aria-hidden="true">
-          {String(step + 1).padStart(2, '0')}
-        </span>
-        <p ref={text} className="text-lg leading-snug text-ink">
-          {steps[step]}
-        </p>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => onStep(step - 1)}
-          disabled={step === 0}
-          className={`h-11 rounded-full border-[1.5px] border-ink bg-paper-2 px-5 text-ink transition-colors duration-300 hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-35 ${label} ${focusRing}`}
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={() => (isLast ? onFinish() : onStep(step + 1))}
-          className={`h-11 rounded-full bg-ink px-6 text-paper transition-colors duration-300 hover:bg-tomato active:scale-[0.98] ${label} ${focusRing}`}
-        >
-          {isLast ? 'Done, time to eat' : 'Next step'}
-        </button>
-      </div>
-    </section>
+/** Paper placeholder with a line-drawn bowl, used when a recipe has no photo (or it fails). */
+function PhotoPlaceholder() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-paper">
+      <svg viewBox="0 0 64 64" className="h-16 w-16 text-ink/45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <path d="M10 34h44a22 18 0 0 1-44 0z" />
+        <path d="M22 54h20M26 10c-3 4 3 6 0 10M34 8c-3 4 3 6 0 10M42 12c-3 4 3 6 0 10" />
+      </svg>
+    </div>
   )
 }
 
 /**
- * Step-by-step recipe sheet. Mount it with `key={recipe.id}` so progress resets per recipe.
- * A native <dialog> provides the focus trap, Escape to close and focus restore.
+ * Recipe sheet. One instance, opened from any card (hero matches, Browse, Favorites). Mount with
+ * `key={recipe.id}`. Native <dialog> gives the focus trap and inert page; this adds the morph from
+ * the clicked card's photo, the animated exit, scroll lock, swipe-to-close on phones, and returns
+ * focus to the card. Ingredients "add" goes through the shared pot (`onAddIngredient`).
  */
-export default function RecipeModal({ recipe, pantry = [], onClose, isFavorite, onToggleFavorite }) {
+export default function RecipeModal({ recipe, pantry = [], origin, onClose, isFavorite, onToggleFavorite, onAddIngredient, onCookAnother }) {
   const dialog = useRef(null)
-  const panel = useRef(null)
+  const wrap = useRef(null)
+  const sheet = useRef(null)
+  const photo = useRef(null)
+  const handle = useRef(null)
+  const closing = useRef(false)
+  const afterClose = useRef(null)
   const [step, setStep] = useState(0)
-  // Anything already in the pot starts ticked off.
-  const [checked, setChecked] = useState(() => recipe.ingredients.filter((item) => pantry.includes(item)))
-  const [imageFailed, setImageFailed] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const [ticked, setTicked] = useState(() => recipe.ingredients.filter((item) => pantry.includes(item)))
+  const [imageFailed, setImageFailed] = useState(!recipe.image)
   const { name, diet, time, difficulty, image, ingredients, steps } = recipe
 
+  // Open as a modal and lock page scroll for as long as the sheet exists.
   useEffect(() => {
     const el = dialog.current
     el.showModal()
+    const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
-      document.body.style.overflow = ''
+      document.body.style.overflow = previous
       if (el.open) el.close()
     }
   }, [])
 
-  useGSAP(() => {
-    if (prefersReducedMotion()) return
-    gsap.from(panel.current, { y: 32, autoAlpha: 0, duration: 0.5, ease: 'power3.out' })
-  })
+  // Entrance: the card photo morphs into the header; the sheet settles from -1deg (desktop)
+  // or slides up as a bottom sheet (phone). No usable photo: scale + fade from the card instead.
+  useGSAP(
+    () => {
+      if (reduced()) return
+      const phone = isPhone()
+      const card = origin?.card
+      const cardRect = card?.isConnected ? card.getBoundingClientRect() : null
+      const cardImg = card?.querySelector('img')
+      const canMorph = cardRect && cardImg && cardImg.complete && cardImg.naturalWidth > 0 && !imageFailed && photo.current
+      const target = photo.current?.getBoundingClientRect()
 
-  const close = () => dialog.current.close()
+      // Unfold: up from 0.9 with a slight turn, then a quick crinkle as the paper settles.
+      const box = wrap.current.getBoundingClientRect()
+      const ox = cardRect ? cardRect.left + cardRect.width / 2 - box.left : box.width / 2
+      const oy = cardRect ? cardRect.top + cardRect.height / 2 - box.top : box.height / 2
+      const tl = gsap.timeline()
+      if (phone) {
+        tl.fromTo(wrap.current, { yPercent: 100 }, { yPercent: 0, duration: 0.45, ease: 'power3.out' })
+      } else {
+        tl.fromTo(
+          wrap.current,
+          { scale: 0.9, rotation: -2.5, autoAlpha: 0, transformOrigin: canMorph ? '50% 40%' : `${ox}px ${oy}px` },
+          { scale: 1, rotation: 0, autoAlpha: 1, duration: 0.45, ease: 'power3.out' },
+        )
+      }
+      tl.to(wrap.current, { keyframes: { scaleY: [1, 0.985, 1.006, 1], skewX: [0, 0.7, -0.35, 0] }, duration: 0.32, ease: 'power1.out', transformOrigin: '50% 0%' })
 
-  const toggleIngredient = (item) => {
-    setChecked((current) => (current.includes(item) ? current.filter((i) => i !== item) : [...current, item]))
+      if (!canMorph) return
+      // Shared element: a copy of the card photo flies from the card to the header, then hands over.
+      const headerImg = photo.current.querySelector('img')
+      const from = cardImg.getBoundingClientRect()
+      const clone = document.createElement('img')
+      clone.src = cardImg.currentSrc || cardImg.src
+      clone.alt = ''
+      // Inside the dialog so it renders in the top layer; left/top/size tween so the crop never stretches.
+      Object.assign(clone.style, {
+        position: 'fixed',
+        left: `${from.left}px`,
+        top: `${from.top}px`,
+        width: `${from.width}px`,
+        height: `${from.height}px`,
+        objectFit: 'cover',
+        borderRadius: '12px',
+        zIndex: '5',
+        pointerEvents: 'none',
+      })
+      dialog.current.appendChild(clone)
+      gsap.set(headerImg, { autoAlpha: 0 })
+      gsap.to(clone, {
+        left: target.left,
+        top: target.top,
+        width: target.width,
+        height: target.height,
+        borderRadius: 6,
+        duration: phone ? 0.5 : 0.6,
+        ease: 'power3.inOut',
+        onComplete: () => {
+          gsap.set(headerImg, { autoAlpha: 1 })
+          clone.remove()
+        },
+      })
+    },
+    { scope: dialog },
+  )
+
+  // Phones: drag the sheet down by its handle or photo to dismiss it.
+  useGSAP(
+    () => {
+      if (!isPhone()) return
+      const [drag] = Draggable.create(wrap.current, {
+        type: 'y',
+        trigger: [handle.current, photo.current],
+        bounds: { minY: 0, maxY: window.innerHeight },
+        onDragEnd() {
+          if (this.y > 120 || (this.y > 40 && this.getVelocity?.('y') > 600)) requestClose()
+          else gsap.to(wrap.current, { y: 0, duration: 0.35, ease: 'power3.out' })
+        },
+      })
+      return () => drag.kill()
+    },
+    { scope: dialog },
+  )
+
+  // Every close path (Esc, backdrop, x, swipe, Cook another) animates out, then really closes.
+  const requestClose = (then) => {
+    if (closing.current) return
+    closing.current = true
+    afterClose.current = then ?? null
+    const done = () => dialog.current?.open && dialog.current.close()
+    if (reduced()) return done()
+    if (isPhone()) gsap.to(wrap.current, { y: 0, yPercent: 100, duration: 0.3, ease: 'power2.in', onComplete: done })
+    else gsap.to(wrap.current, { autoAlpha: 0, scale: 0.97, rotation: -1, y: 12, duration: 0.22, ease: 'power2.in', onComplete: done })
   }
 
-  const onKeyDown = (event) => {
-    if (event.key === 'ArrowRight' && step < steps.length - 1) setStep(step + 1)
-    if (event.key === 'ArrowLeft' && step > 0) setStep(step - 1)
+  const handleClosed = () => {
+    origin?.focus?.isConnected && origin.focus.focus({ preventScroll: true })
+    onClose()
+    afterClose.current?.()
   }
 
-  return (
+  const tick = (item) => setTicked((t) => (t.includes(item) ? t.filter((i) => i !== item) : [...t, item]))
+  const addToPot = (item) => {
+    onAddIngredient(item)
+    setTicked((t) => (t.includes(item) ? t : [...t, item]))
+  }
+
+  const goTo = (n) => setStep(Math.max(0, Math.min(steps.length - 1, n)))
+  const onKeyDown = (e) => {
+    if (e.target.closest('input, textarea')) return
+    if (e.key === 'ArrowRight' && !finished) step === steps.length - 1 ? setFinished(true) : goTo(step + 1)
+    if (e.key === 'ArrowLeft') finished ? setFinished(false) : goTo(step - 1)
+  }
+
+  // Portal to <body>: no ancestor overflow/transform can clip it (the dialog is in the top layer anyway).
+  return createPortal(
     <dialog
       ref={dialog}
-      aria-labelledby="modal-title"
-      onClose={onClose}
+      aria-labelledby="sheet-title"
+      onCancel={(e) => {
+        e.preventDefault()
+        requestClose()
+      }}
+      onClose={handleClosed}
       onKeyDown={onKeyDown}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none bg-transparent p-0 backdrop:bg-ink/55"
+      className="fixed inset-0 z-[100] m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden bg-transparent p-0 text-ink backdrop:bg-ink/45 backdrop:backdrop-blur-[3px]"
     >
-      {/* Clicking the dimmed area outside the sheet closes the dialog. */}
       <div
-        className="flex min-h-full items-end justify-center md:items-center md:p-6"
-        onClick={(event) => event.target === event.currentTarget && close()}
+        className="flex h-full items-end justify-center sm:items-center sm:p-6"
+        onClick={(e) => e.target === e.currentTarget && requestClose()}
       >
-        <div
-          ref={panel}
-          className="relative max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-t-3xl border-[1.5px] border-ink bg-paper-2 text-ink md:rounded-3xl md:shadow-[6px_6px_0_#1C1915]"
-        >
-          <div className="relative h-44 overflow-hidden border-b-[1.5px] border-ink bg-saffron/35 md:h-56">
-            {!imageFailed && (
-              <img src={image} alt="" onError={() => setImageFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
-            )}
-            <div className="absolute right-3 top-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => onToggleFavorite(recipe.id)}
-                aria-pressed={isFavorite}
-                aria-label={`${isFavorite ? 'Remove' : 'Save'} ${name} ${isFavorite ? 'from' : 'to'} favorites`}
-                className={`${iconButton} ${isFavorite ? 'text-tomato' : 'text-ink'}`}
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill={isFavorite ? 'currentColor' : 'none'} stroke={isFavorite ? '#1C1915' : 'currentColor'} strokeWidth="1.8" aria-hidden="true">
-                  <path d="M12 20.5s-7.5-4.4-7.5-10.1A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8c0 5.7-7.5 10.1-7.5 10.1Z" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button type="button" onClick={close} aria-label="Close recipe" className={`${iconButton} text-ink`}>
-                <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                  <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" strokeLinecap="round" />
-                </svg>
-              </button>
+        <div ref={wrap} className="relative w-full max-sm:h-full sm:max-w-3xl sm:[filter:drop-shadow(0_24px_40px_rgb(28_25_21/0.28))]">
+          <svg width="0" height="0" className="absolute" aria-hidden="true">
+            <clipPath id="torn-sheet" clipPathUnits="objectBoundingBox">
+              <path d={TORN_PATH} />
+            </clipPath>
+          </svg>
+          <Tape className="-left-6 top-3 -rotate-[38deg]" />
+          <Tape className="-right-6 top-3 rotate-[38deg]" />
+
+          <div
+            ref={sheet}
+            className="recipe-sheet relative h-full overflow-y-auto overscroll-contain px-5 pb-6 pt-4 sm:max-h-[90dvh] sm:rounded-b-md sm:px-8 sm:pb-8 sm:pt-6"
+            style={{ clipPath: 'url(#torn-sheet)' }}
+          >
+            <div ref={handle} className="-mx-5 flex h-7 touch-none items-center justify-center sm:hidden" aria-hidden="true">
+              <span className="h-1.5 w-12 rounded-full bg-ink/25" />
             </div>
-          </div>
 
-          <div className="px-5 pt-5 md:px-8 md:pt-6">
-            <p className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-soft ${label}`}>
-              <span className="inline-flex items-center gap-1.5 text-ink">
+            <header>
+              <div ref={photo} className="relative h-48 touch-none overflow-hidden rounded-md ring-1 ring-ink/15 sm:h-60 sm:touch-auto">
+                {imageFailed ? (
+                  <PhotoPlaceholder />
+                ) : (
+                  <img src={image} alt="" onError={() => setImageFailed(true)} className="h-full w-full object-cover" />
+                )}
+                <div className="absolute right-3 top-3 flex gap-2">
+                  <IconButton
+                    label={`${isFavorite ? 'Remove' : 'Save'} ${name} ${isFavorite ? 'from' : 'to'} favorites`}
+                    pressed={isFavorite}
+                    onClick={() => onToggleFavorite(recipe.id)}
+                  >
+                    <svg viewBox="0 0 24 24" className={`h-5 w-5 ${isFavorite ? 'text-tomato-ink' : ''}`} fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M12 20.5s-7.5-4.4-7.5-10.1A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8c0 5.7-7.5 10.1-7.5 10.1Z" strokeLinejoin="round" />
+                    </svg>
+                  </IconButton>
+                  <IconButton label="Close recipe" onClick={() => requestClose()}>
+                    <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" strokeLinecap="round" />
+                    </svg>
+                  </IconButton>
+                </div>
+              </div>
+
+              <h2 id="sheet-title" className="mt-5 font-display text-3xl font-extrabold leading-[1.05] tracking-[-0.03em] sm:text-4xl">
+                {name}
+              </h2>
+              <p className="mt-2 flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-ink-soft">
                 <DietMark diet={diet} />
-                {DIET_LABELS[diet]}
-              </span>
-              <span>{time} min</span>
-              <span>{difficulty}</span>
-            </p>
-            <h2 id="modal-title" className="mt-2 font-display text-4xl font-extrabold leading-[0.95] tracking-tight md:text-5xl">
-              {name}
-            </h2>
-          </div>
+                {time} min · {difficulty} · {DIET_LABELS[diet]}
+              </p>
+            </header>
 
-          <div className="grid gap-8 px-5 pb-8 pt-6 md:grid-cols-[14rem_1fr] md:px-8">
-            <IngredientChecklist ingredients={ingredients} checked={checked} onToggle={toggleIngredient} />
-            <StepPlayer steps={steps} step={step} onStep={setStep} onFinish={close} />
+            <div className="mt-6 grid gap-8 border-t border-dashed border-ink/20 pt-6 sm:grid-cols-[14rem_1fr]">
+              <IngredientChecklist ingredients={ingredients} pantry={pantry} ticked={ticked} onTick={tick} onAdd={addToPot} />
+              {finished ? (
+                <FinishCard
+                  recipeName={name}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={() => onToggleFavorite(recipe.id)}
+                  onCookAnother={() => requestClose(onCookAnother)}
+                  onBack={() => setFinished(false)}
+                />
+              ) : (
+                <CookMode steps={steps} step={step} onStep={goTo} onFinish={() => setFinished(true)} />
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   )
 }

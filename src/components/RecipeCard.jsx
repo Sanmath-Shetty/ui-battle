@@ -1,90 +1,112 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import gsap from 'gsap'
 import DietMark from './DietMark.jsx'
+import { CARD_HAIRLINE, WashiTape, indexCardLook } from './IndexCard.jsx'
 
 const CATEGORY_LABELS = { breakfast: 'Breakfast', main: 'Lunch & Dinner', dessert: 'Dessert' }
 const DIET_LABELS = { veg: 'Veg', nonveg: 'Non-veg' }
+const BURST = [0, 60, 120, 180, 240, 300]
 
-// Index-card look shared with the hero's MatchStrip: hand-cut edges, washi tape, a seeded tilt.
-const CARD_EDGES = [
-  'polygon(0.4% 0.8%, 22% 0.2%, 47% 0.6%, 71% 0.1%, 99.6% 0.5%, 100% 38%, 99.5% 71%, 99.8% 99.4%, 74% 99.8%, 49% 99.4%, 23% 99.9%, 0.2% 99.5%, 0.5% 64%, 0% 31%)',
-  'polygon(0% 0.3%, 26% 0.7%, 53% 0.1%, 78% 0.6%, 99.7% 0%, 99.4% 33%, 100% 66%, 99.6% 99.7%, 72% 99.4%, 44% 99.9%, 19% 99.5%, 0.4% 99.8%, 0% 69%, 0.5% 36%)',
-  'polygon(0.4% 0.1%, 31% 0.5%, 58% 0.2%, 83% 0.7%, 100% 0.3%, 99.6% 42%, 100% 77%, 99.3% 99.8%, 68% 99.5%, 39% 100%, 14% 99.4%, 0% 99.7%, 0.4% 58%, 0% 24%)',
-]
-
-// Stable pseudo-random number in [0, 1) from a recipe id, so a card keeps its tilt and edge.
-function seeded(id) {
-  let h = 2166136261
-  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
-  return (h >>> 0) / 4294967296
+function reduced() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function WashiTape() {
-  return (
-    <span
-      aria-hidden="true"
-      className="absolute -top-2.5 left-6 z-10 h-[18px] w-16 -rotate-[5deg] bg-saffron/55"
-      style={{
-        clipPath: 'polygon(0 10%, 4% 0, 96% 0, 100% 14%, 97% 32%, 100% 50%, 96% 68%, 100% 86%, 96% 100%, 4% 100%, 0 88%, 3% 70%, 0 50%, 3% 30%)',
-        backgroundImage: 'repeating-linear-gradient(45deg, rgb(255 255 255 / 0.22) 0 4px, transparent 4px 9px)',
-      }}
-    />
-  )
-}
-
-// Line-art plate shown on a flat saffron block when the photo fails to load.
-function PlateFallback() {
-  return (
-    <svg viewBox="0 0 64 64" className="absolute inset-0 m-auto h-16 w-16 text-ink/50" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="32" cy="34" r="20" />
-      <circle cx="32" cy="34" r="12" />
-      <path d="M26 8c-3 3 3 5 0 8M34 6c-3 3 3 5 0 8M42 8c-3 3 3 5 0 8" />
-    </svg>
-  )
-}
-
+/** Heart that pops on every click and throws a small burst of tomato specks when saving. */
 function HeartButton({ name, active, onClick }) {
+  const button = useRef(null)
+
+  // Its own control, not part of the card's open-recipe hit area: never let the click travel on.
+  const press = (event) => {
+    event.stopPropagation()
+    onClick()
+    if (reduced()) return
+    const q = gsap.utils.selector(button)
+    gsap.fromTo(q('[data-heart]'), { scale: 1 }, { keyframes: { scale: [1, 1.35, 0.92, 1] }, duration: 0.45, ease: 'power2.out' })
+    if (active) return
+    q('[data-speck]').forEach((speck, i) => {
+      const angle = (BURST[i] * Math.PI) / 180
+      gsap.fromTo(
+        speck,
+        { x: 0, y: 0, scale: 1, autoAlpha: 1 },
+        { x: Math.cos(angle) * 20, y: Math.sin(angle) * 20, scale: 0.3, autoAlpha: 0, duration: 0.5, ease: 'power3.out' },
+      )
+    })
+  }
+
   return (
     <button
+      ref={button}
       type="button"
-      onClick={onClick}
+      onClick={press}
       aria-pressed={active}
       aria-label={`${active ? 'Remove' : 'Save'} ${name} ${active ? 'from' : 'to'} favorites`}
-      className={`absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full border-[1.5px] border-ink bg-paper-2 shadow-[2px_2px_0_#1C1915] outline-none transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 hover:-rotate-6 focus-visible:ring-2 focus-visible:ring-tomato active:translate-y-0 ${
-        active ? 'text-tomato' : 'text-ink'
-      }`}
+      className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-paper-2 text-ink outline-none ring-2 ring-ink focus-visible:ring-tomato-ink"
     >
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill={active ? 'currentColor' : 'none'} stroke={active ? '#1C1915' : 'currentColor'} strokeWidth="1.8" aria-hidden="true">
+      {BURST.map((deg) => (
+        <span key={deg} data-speck aria-hidden="true" className="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-tomato opacity-0" />
+      ))}
+      <svg data-heart viewBox="0 0 24 24" className={`h-5 w-5 ${active ? 'text-tomato-ink' : ''}`} fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
         <path d="M12 20.5s-7.5-4.4-7.5-10.1A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8c0 5.7-7.5 10.1-7.5 10.1Z" strokeLinejoin="round" />
       </svg>
     </button>
   )
 }
 
+/** "3/5 IN POT" inside a pencil loop. */
+function PotBadge({ have, total }) {
+  return (
+    <span className={`relative inline-flex shrink-0 items-center px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ${have > 0 ? 'text-basil' : 'text-ink-soft'}`}>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
+        <path
+          d="M52 4C78 3 97 10 96 21 95 32 74 37 49 36 24 35 4 30 4 19 4 9 22 3 46 4c10 0 20 2 26 5"
+          fill="none"
+          stroke={have > 0 ? '#2E6A3C' : 'rgb(28 25 21 / 0.35)'}
+          strokeWidth="2"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span className="relative">{have}/{total} in pot</span>
+    </span>
+  )
+}
+
+function PhotoFallback() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-paper">
+      <svg viewBox="0 0 64 64" className="h-14 w-14 text-ink/40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <path d="M10 34h44a22 18 0 0 1-44 0z" />
+        <path d="M22 54h20M26 10c-3 4 3 6 0 10M34 8c-3 4 3 6 0 10M42 12c-3 4 3 6 0 10" />
+      </svg>
+    </div>
+  )
+}
+
 /**
+ * Recipe index card: washi tape, hand-cut edge, a small tilt that straightens on hover.
  * `onOpen` and `onToggleFavorite` are optional; without them the card is a plain summary.
- * `pantry` is the ingredient list in the pot. When it is not empty the card shows
- * how much of the recipe is already in the kitchen.
+ * `pantry` is the ingredient list in the pot. When it is not empty the card shows how much
+ * of the recipe is already in the kitchen.
  */
 export default function RecipeCard({ recipe, pantry = [], onOpen, isFavorite = false, onToggleFavorite }) {
-  const [imageFailed, setImageFailed] = useState(false)
+  const [imageFailed, setImageFailed] = useState(!recipe.image)
   const { name, category, diet, time, difficulty, image, ingredients } = recipe
   const have = ingredients.filter((item) => pantry.includes(item)).length
-  const r = seeded(recipe.id)
-  const tilt = (r * 3 - 1.5).toFixed(2)
-  const edge = CARD_EDGES[Math.floor(r * 1000) % CARD_EDGES.length]
+  const { clipPath, tilt } = indexCardLook(recipe.id, 1)
 
   return (
+    // The outer box never moves, so hover stays put; only the inner card lifts (no edge flicker).
     <div className="group h-full pt-2.5">
       <div
-        className="relative h-full rotate-(--tilt) transition-[rotate,translate] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-focus-within:rotate-0 group-hover:-translate-y-1 group-hover:rotate-0"
-        style={{ '--tilt': `${tilt}deg` }}
+        className="relative h-full rotate-(--tilt) transition-[rotate,translate] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:-translate-y-1.5 group-hover:rotate-0 group-focus-within:rotate-0"
+        style={{ '--tilt': tilt }}
       >
-        <WashiTape />
-        <div className="h-full [filter:drop-shadow(0_0_0.5px_rgb(28_25_21/0.45))_drop-shadow(0_2px_0_rgb(28_25_21/0.08))]">
-          <article className="relative flex h-full flex-col bg-paper-2 p-3 pt-4" style={{ clipPath: edge }}>
-            <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-saffron/35">
+        <WashiTape className="left-1/2 -translate-x-1/2" />
+        <div className={`h-full ${CARD_HAIRLINE}`}>
+          <article className="relative flex h-full flex-col bg-paper-2 p-2" style={{ clipPath }}>
+            <div className="relative aspect-[4/3] overflow-hidden rounded-t-lg">
               {imageFailed ? (
-                <PlateFallback />
+                <PhotoFallback />
               ) : (
                 <img
                   src={image}
@@ -92,28 +114,29 @@ export default function RecipeCard({ recipe, pantry = [], onOpen, isFavorite = f
                   loading="lazy"
                   decoding="async"
                   onError={() => setImageFailed(true)}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:scale-105"
+                  className="h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:scale-[1.04]"
                 />
               )}
-
-              <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full border border-ink/15 bg-paper-2 px-2.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-ink">
+              <span className="pointer-events-none absolute inset-0 rounded-t-lg ring-1 ring-inset ring-ink/10" aria-hidden="true" />
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-paper-2 px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-ink ring-1 ring-ink/15">
                 <DietMark diet={diet} />
                 {DIET_LABELS[diet]}
               </span>
-
-              {onToggleFavorite && (
-                <HeartButton name={name} active={isFavorite} onClick={() => onToggleFavorite(recipe.id)} />
-              )}
             </div>
 
-            <div className="flex flex-1 flex-col px-1.5 pb-2 pt-4">
-              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-tomato-ink">{CATEGORY_LABELS[category]}</p>
-              <h3 className="mt-1.5 text-xl font-bold leading-tight tracking-tight text-ink">
+            {onToggleFavorite && <HeartButton name={name} active={isFavorite} onClick={() => onToggleFavorite(recipe.id)} />}
+
+            <div className="flex flex-1 flex-col px-2 pb-2 pt-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="pt-1 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-tomato-ink">{CATEGORY_LABELS[category]}</p>
+                {pantry.length > 0 && <PotBadge have={have} total={ingredients.length} />}
+              </div>
+              <h3 className="mt-2 font-display text-xl font-bold leading-snug tracking-tight text-ink">
                 {onOpen ? (
                   <button
                     type="button"
                     onClick={() => onOpen(recipe)}
-                    className="text-left outline-none after:absolute after:inset-0 focus-visible:after:ring-[3px] focus-visible:after:ring-inset focus-visible:after:ring-tomato"
+                    className="text-left outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:outline-2 focus-visible:after:-outline-offset-4 focus-visible:after:outline-tomato-ink"
                   >
                     {name}
                   </button>
@@ -121,27 +144,9 @@ export default function RecipeCard({ recipe, pantry = [], onOpen, isFavorite = f
                   name
                 )}
               </h3>
-
-              <dl className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-4 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-soft">
-                <div>
-                  <dt className="sr-only">Time</dt>
-                  <dd>{time} min</dd>
-                </div>
-                <div>
-                  <dt className="sr-only">Difficulty</dt>
-                  <dd>{difficulty}</dd>
-                </div>
-                <div>
-                  <dt className="sr-only">Ingredients</dt>
-                  {pantry.length > 0 ? (
-                    <dd className={have > 0 ? 'font-semibold text-basil' : ''}>
-                      You have {have}/{ingredients.length}
-                    </dd>
-                  ) : (
-                    <dd>{ingredients.length} ingredients</dd>
-                  )}
-                </div>
-              </dl>
+              <p className="mt-auto pt-4 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-ink-soft">
+                {time} min · {difficulty} · {ingredients.length} ingredients
+              </p>
             </div>
           </article>
         </div>

@@ -23,7 +23,7 @@ export default function PantrySearch({ ref, selected, suggestions, onAdd }) {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Or type one: tomato, rice..."
         autoComplete="off"
-        className="min-w-0 flex-1 bg-transparent text-base text-ink placeholder:text-ink-soft/70 focus:outline-none"
+        className="h-11 min-w-0 flex-1 bg-transparent text-base text-ink placeholder:text-ink-soft/70 focus:outline-none"
       />
       <datalist id="pantry-suggestions">
         {suggestions.filter((s) => !selected.includes(s)).map((s) => <option key={s} value={s} />)}

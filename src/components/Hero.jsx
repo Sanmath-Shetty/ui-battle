@@ -166,7 +166,7 @@ function PotChips({ selected, onRemove }) {
  * state that RadarFinder also reads, and `matches` comes from matchRecipes in App.
  * `ready` holds the load reveal (letters already masked) until the Intro wipe starts clearing.
  */
-export default function Hero({ selected, onToggle, matches, ready = true, resultsId = 'finder' }) {
+export default function Hero({ selected, onToggle, matches, ready = true, resultsId = 'finder', onOpenRecipe }) {
   const root = useRef(null)
   const potRef = useRef(null)
   const layerRef = useRef(null)
@@ -403,7 +403,7 @@ export default function Hero({ selected, onToggle, matches, ready = true, result
         </div>
       </div>
 
-      <MatchStrip matches={selected.length ? matches : []} resultsId={resultsId} />
+      <MatchStrip matches={selected.length ? matches : []} resultsId={resultsId} onOpenRecipe={onOpenRecipe} />
 
       <div ref={layerRef} aria-hidden="true" className="pointer-events-none fixed inset-0 z-40" />
       <GhostDemo active={settled} rootRef={root} onAdd={(name) => toggleRef.current(name)} onDropHover={setDropReady} />
