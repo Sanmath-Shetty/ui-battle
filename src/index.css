@@ -15,19 +15,6 @@
   --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-
-  /*
-   * LEGACY ALIASES (temporary). The first dark palette's names, mapped onto the paper palette so
-   * components written against it (Navbar, Browse, Favorites, RecipeCard, RecipeModal, Footer)
-   * stay readable and on-theme. Note the inversion: "cream" text is now ink, "bg"/"surface" are paper.
-   * Migrate those files to paper/ink/tomato tokens, then delete this block.
-   */
-  --color-bg: #f4ecdf;
-  --color-surface: #fbf6ec;
-  --color-surface-2: #efe5d3;
-  --color-cream: #1c1915;
-  --color-muted: #5e554a;
-  --color-lime: #a8301d;
 }
 
 html { background: var(--color-paper); }

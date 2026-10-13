@@ -29,15 +29,15 @@ function matchesQuery(recipe, query) {
   return query.toLowerCase().split(/\s+/).filter(Boolean).every((word) => haystack.includes(word))
 }
 
-const pillBase =
-  'inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium outline-none transition-colors duration-500 focus-visible:ring-2 focus-visible:ring-lime'
+const label = 'font-mono text-[11px] font-medium uppercase tracking-[0.14em]'
+const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-tomato focus-visible:ring-offset-2 focus-visible:ring-offset-paper'
 
 function CategoryTabs({ value, onChange, counts }) {
   return (
     <div
       role="group"
       aria-label="Filter by meal"
-      className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
+      className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] md:mx-0 md:px-1 [&::-webkit-scrollbar]:hidden"
     >
       {CATEGORIES.map((category) => {
         const active = category.value === value
@@ -47,16 +47,14 @@ function CategoryTabs({ value, onChange, counts }) {
             type="button"
             aria-pressed={active}
             onClick={() => onChange(category.value)}
-            className={`${pillBase} ${
+            className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-ink px-4 transition-[translate,box-shadow,background-color,color] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${label} ${focusRing} ${
               active
-                ? 'bg-lime text-bg shadow-[0_0_30px_-10px_rgba(200,241,105,0.8)]'
-                : 'bg-surface text-muted ring-1 ring-cream/10 hover:text-cream'
+                ? 'translate-x-0.5 translate-y-0.5 bg-ink text-paper'
+                : 'bg-paper-2 text-ink shadow-[3px_3px_0_#1C1915] hover:-translate-y-0.5'
             }`}
           >
             {category.label}
-            <span className={`text-xs tabular-nums ${active ? 'text-bg/60' : 'text-muted/70'}`}>
-              {counts[category.value]}
-            </span>
+            <span className={`tabular-nums ${active ? 'text-paper/70' : 'text-ink-soft'}`}>{counts[category.value]}</span>
           </button>
         )
       })}
@@ -66,7 +64,7 @@ function CategoryTabs({ value, onChange, counts }) {
 
 function DietFilter({ value, onChange }) {
   return (
-    <div role="group" aria-label="Filter by diet" className="inline-flex self-start rounded-full bg-surface p-1 ring-1 ring-cream/10">
+    <div role="group" aria-label="Filter by diet" className="inline-flex self-start rounded-full border-[1.5px] border-ink bg-paper-2 p-1">
       {DIETS.map((diet) => {
         const active = diet.value === value
         return (
@@ -75,7 +73,9 @@ function DietFilter({ value, onChange }) {
             type="button"
             aria-pressed={active}
             onClick={() => onChange(diet.value)}
-            className={`${pillBase} h-9 px-3.5 ${active ? 'bg-surface-2 text-cream ring-1 ring-cream/15' : 'text-muted hover:text-cream'}`}
+            className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 transition-colors duration-300 ${label} ${focusRing} ${
+              active ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'
+            }`}
           >
             {diet.value !== 'all' && <DietMark diet={diet.value} />}
             {diet.label}
@@ -88,9 +88,9 @@ function DietFilter({ value, onChange }) {
 
 function SearchField({ value, onChange }) {
   return (
-    <div className="relative w-full md:max-w-sm">
+    <div className="relative w-full rounded-full border-[1.5px] border-ink bg-paper-2 shadow-[3px_3px_0_#1C1915] transition-transform duration-300 focus-within:-translate-y-0.5 md:max-w-sm">
       <label htmlFor="recipe-search" className="sr-only">Search recipes</label>
-      <svg viewBox="0 0 16 16" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <svg viewBox="0 0 16 16" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
         <circle cx="7" cy="7" r="4.5" />
         <path d="m10.5 10.5 3 3" strokeLinecap="round" />
       </svg>
@@ -101,7 +101,7 @@ function SearchField({ value, onChange }) {
         onChange={(event) => onChange(event.target.value)}
         placeholder="Search by dish or ingredient"
         autoComplete="off"
-        className="h-12 w-full rounded-full bg-surface pl-11 pr-5 text-sm text-cream outline-none ring-1 ring-cream/10 transition-shadow duration-500 placeholder:text-muted/70 focus:ring-2 focus:ring-lime/60 md:text-base"
+        className="h-12 w-full rounded-full bg-transparent pl-11 pr-5 text-base text-ink outline-none placeholder:text-ink-soft/70 focus-visible:ring-2 focus-visible:ring-tomato"
       />
     </div>
   )
@@ -144,12 +144,12 @@ export default function Browse({ recipes, pantry = [], onOpenRecipe, favoriteIds
 
   return (
     <section ref={root} id="browse" aria-labelledby="browse-title" className="scroll-mt-24 px-4 py-20 md:px-8 md:py-28">
-      <div className="mx-auto max-w-7xl">
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-lime">The full menu</p>
-        <h2 id="browse-title" className="mt-3 max-w-2xl font-display text-[clamp(2rem,4.5vw,3.5rem)] font-semibold leading-[1.05] tracking-tight text-cream">
-          Browse every recipe on the radar.
+      <div className="mx-auto max-w-7xl 2xl:max-w-[1600px]">
+        <p className={`${label} text-tomato-ink`}>The full cookbook</p>
+        <h2 id="browse-title" className="mt-3 max-w-3xl font-display text-[clamp(2.25rem,5.5vw,4.25rem)] font-extrabold leading-[0.95] tracking-tight text-ink">
+          Every recipe, <span className="text-tomato">one shelf.</span>
         </h2>
-        <p className="mt-4 max-w-xl text-base leading-relaxed text-muted">
+        <p className="mt-4 max-w-xl text-base leading-snug text-ink-soft lg:text-lg">
           Not sure what is in the fridge yet? Start with the meal you are in the mood for and narrow it down from there.
         </p>
 
@@ -157,17 +157,17 @@ export default function Browse({ recipes, pantry = [], onOpenRecipe, favoriteIds
           <SearchField value={query} onChange={setQuery} />
         </div>
 
-        <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CategoryTabs value={category} onChange={setCategory} counts={counts} />
           <DietFilter value={diet} onChange={setDiet} />
         </div>
 
-        <p className="mt-6 text-sm text-muted" aria-live="polite">
+        <p className={`mt-6 border-b border-ink/15 pb-2 text-ink-soft ${label}`} aria-live="polite">
           Showing {visible.length} {visible.length === 1 ? 'recipe' : 'recipes'}
         </p>
 
         {visible.length > 0 ? (
-          <ul className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <ul className="mt-6 grid gap-x-5 gap-y-7 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {visible.map((recipe) => (
               <li key={recipe.id} data-card>
                 <RecipeCard
@@ -181,13 +181,15 @@ export default function Browse({ recipes, pantry = [], onOpenRecipe, favoriteIds
             ))}
           </ul>
         ) : (
-          <div className="mt-5 rounded-2xl bg-surface px-6 py-14 text-center ring-1 ring-cream/10">
-            <p className="font-display text-2xl font-semibold text-cream">Nothing on the radar here.</p>
-            <p className="mt-2 text-sm text-muted">{query.trim() ? `No recipe matches “${query.trim()}” with these filters.` : 'No recipe matches that meal and diet together.'}</p>
+          <div className="mt-6 rounded-2xl border-2 border-dashed border-ink/20 px-6 py-14 text-center">
+            <p className="font-display text-3xl font-extrabold tracking-tight text-ink">Nothing on this shelf.</p>
+            <p className="mt-2 text-base text-ink-soft">
+              {query.trim() ? `No recipe matches “${query.trim()}” with these filters.` : 'No recipe matches that meal and diet together.'}
+            </p>
             <button
               type="button"
               onClick={clearFilters}
-              className={`${pillBase} mt-6 bg-cream/10 text-cream hover:bg-cream/15`}
+              className={`mt-6 h-11 rounded-full bg-ink px-5 text-paper transition-colors duration-300 hover:bg-tomato active:scale-[0.98] ${label} ${focusRing}`}
             >
               Clear search and filters
             </button>
