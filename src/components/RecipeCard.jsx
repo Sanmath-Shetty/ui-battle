@@ -23,12 +23,14 @@ function HeartButton({ name, active, onClick }) {
 }
 
 /**
- * `onOpen` and `onToggleFavorite` are optional: the card stays a plain summary until
- * RecipeModal and useFavorites are wired in.
+ * `onOpen` and `onToggleFavorite` are optional; without them the card is a plain summary.
+ * `pantry` is the ingredient list picked on the radar. When it is not empty the card shows
+ * how much of the recipe is already in the kitchen.
  */
-export default function RecipeCard({ recipe, onOpen, isFavorite = false, onToggleFavorite }) {
+export default function RecipeCard({ recipe, pantry = [], onOpen, isFavorite = false, onToggleFavorite }) {
   const [imageFailed, setImageFailed] = useState(false)
   const { name, category, diet, time, difficulty, image, ingredients } = recipe
+  const have = ingredients.filter((item) => pantry.includes(item)).length
 
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-cream/10 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-1 hover:shadow-[0_18px_50px_-22px_rgba(200,241,105,0.55)] hover:ring-lime/30 focus-within:ring-lime/40">
@@ -92,7 +94,13 @@ export default function RecipeCard({ recipe, onOpen, isFavorite = false, onToggl
           </div>
           <div>
             <dt className="sr-only">Ingredients</dt>
-            <dd>{ingredients.length} ingredients</dd>
+            {pantry.length > 0 ? (
+              <dd className={have > 0 ? 'font-medium text-lime' : ''}>
+                You have {have}/{ingredients.length}
+              </dd>
+            ) : (
+              <dd>{ingredients.length} ingredients</dd>
+            )}
           </div>
         </dl>
       </div>

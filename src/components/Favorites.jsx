@@ -1,6 +1,6 @@
 import RecipeCard from './RecipeCard.jsx'
 
-export default function Favorites({ recipes, favoriteIds, onOpenRecipe, onToggleFavorite }) {
+export default function Favorites({ recipes, pantry = [], favoriteIds, onOpenRecipe, onToggleFavorite }) {
   // Keep the order in which recipes were saved.
   const saved = favoriteIds.map((id) => recipes.find((recipe) => recipe.id === id)).filter(Boolean)
 
@@ -23,7 +23,7 @@ export default function Favorites({ recipes, favoriteIds, onOpenRecipe, onToggle
           <ul className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {saved.map((recipe) => (
               <li key={recipe.id}>
-                <RecipeCard recipe={recipe} onOpen={onOpenRecipe} isFavorite onToggleFavorite={onToggleFavorite} />
+                <RecipeCard recipe={recipe} pantry={pantry} onOpen={onOpenRecipe} isFavorite onToggleFavorite={onToggleFavorite} />
               </li>
             ))}
           </ul>

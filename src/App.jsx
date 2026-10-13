@@ -31,14 +31,15 @@ export default function App() {
       <Navbar favoritesCount={favoriteIds.length} />
       <main className="w-full max-w-full overflow-x-hidden">
         <Hero selected={selected} onToggle={toggleIngredient} matchCount={matches.length} />
-        <Browse recipes={recipes} onOpenRecipe={setOpenRecipe} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
-        <Favorites recipes={recipes} favoriteIds={favoriteIds} onOpenRecipe={setOpenRecipe} onToggleFavorite={toggleFavorite} />
+        <Browse recipes={recipes} pantry={selected} onOpenRecipe={setOpenRecipe} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
+        <Favorites recipes={recipes} pantry={selected} favoriteIds={favoriteIds} onOpenRecipe={setOpenRecipe} onToggleFavorite={toggleFavorite} />
       </main>
       <Footer />
       {openRecipe && (
         <RecipeModal
           key={openRecipe.id}
           recipe={openRecipe}
+          pantry={selected}
           onClose={() => setOpenRecipe(null)}
           isFavorite={favoriteIds.includes(openRecipe.id)}
           onToggleFavorite={toggleFavorite}

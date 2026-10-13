@@ -123,11 +123,12 @@ function StepPlayer({ steps, step, onStep, onFinish }) {
  * Step-by-step recipe view. Mount it with `key={recipe.id}` so progress resets per recipe.
  * A native <dialog> provides the focus trap, Escape to close and focus restore.
  */
-export default function RecipeModal({ recipe, onClose, isFavorite, onToggleFavorite }) {
+export default function RecipeModal({ recipe, pantry = [], onClose, isFavorite, onToggleFavorite }) {
   const dialog = useRef(null)
   const panel = useRef(null)
   const [step, setStep] = useState(0)
-  const [checked, setChecked] = useState([])
+  // Anything already picked on the radar starts ticked off.
+  const [checked, setChecked] = useState(() => recipe.ingredients.filter((item) => pantry.includes(item)))
   const [imageFailed, setImageFailed] = useState(false)
   const { name, diet, time, difficulty, image, ingredients, steps } = recipe
 

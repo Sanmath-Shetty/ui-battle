@@ -107,7 +107,7 @@ function SearchField({ value, onChange }) {
   )
 }
 
-export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onToggleFavorite }) {
+export default function Browse({ recipes, pantry = [], onOpenRecipe, favoriteIds = [], onToggleFavorite }) {
   const root = useRef(null)
   const [category, setCategory] = useState('all')
   const [diet, setDiet] = useState('all')
@@ -172,6 +172,7 @@ export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onTogg
               <li key={recipe.id} data-card>
                 <RecipeCard
                   recipe={recipe}
+                  pantry={pantry}
                   onOpen={onOpenRecipe}
                   isFavorite={favoriteIds.includes(recipe.id)}
                   onToggleFavorite={onToggleFavorite}
