@@ -36,7 +36,7 @@ export default function App() {
       {introActive && <Intro onReveal={() => setHeroReady(true)} onDone={() => setIntroActive(false)} />}
       <Navbar favoritesCount={favoriteIds.length} />
       <main className="w-full max-w-full overflow-x-hidden">
-        <Hero selected={selected} onToggle={toggleIngredient} matches={matches} ready={heroReady} />
+        <Hero selected={selected} onToggle={toggleIngredient} matches={matches} ready={heroReady} resultsId="browse" />
         <Browse recipes={recipes} pantry={selected} onOpenRecipe={setOpenRecipe} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
         <Favorites recipes={recipes} pantry={selected} favoriteIds={favoriteIds} onOpenRecipe={setOpenRecipe} onToggleFavorite={toggleFavorite} />
       </main>
