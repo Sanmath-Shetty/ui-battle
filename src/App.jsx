@@ -2,7 +2,9 @@ import { useCallback, useMemo, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useGSAP } from '@gsap/react'
+import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
+import Browse from './components/Browse.jsx'
 import { recipes } from './data/recipes.js'
 import { matchRecipes } from './utils/matchRecipes.js'
 
@@ -19,8 +21,12 @@ export default function App() {
   const matches = useMemo(() => matchRecipes(recipes, selected), [selected])
 
   return (
-    <main className="w-full max-w-full overflow-x-hidden">
-      <Hero selected={selected} onToggle={toggleIngredient} matchCount={matches.length} />
-    </main>
+    <>
+      <Navbar />
+      <main className="w-full max-w-full overflow-x-hidden">
+        <Hero selected={selected} onToggle={toggleIngredient} matchCount={matches.length} />
+        <Browse recipes={recipes} />
+      </main>
+    </>
   )
 }
