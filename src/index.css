@@ -1,18 +1,88 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0f1a14;
-  --color-surface: #16251c;
-  --color-surface-2: #1e3226;
-  --color-cream: #f4efe3;
-  --color-muted: #9fb0a3;
-  --color-lime: #c8f169;
-  --color-tomato: #ff6b3d;
-  --color-veg: #3ecf6e;
-  --color-nonveg: #e5484d;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --color-paper: #f4ecdf;
+  --color-paper-2: #fbf6ec;
+  --color-ink: #1c1915;
+  --color-ink-soft: #5e554a;
+  --color-tomato: #e5432d;
+  /* Tomato for small text: 5.1:1+ on paper even under the vignette (plain tomato is large-text only). */
+  --color-tomato-ink: #a8301d;
+  --color-saffron: #f2b23a;
+  --color-basil: #2e6a3c;
+  --color-veg: #2e6a3c;
+  --color-nonveg: #9a3b1e;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /*
+   * LEGACY ALIASES (temporary). The first dark palette's names, mapped onto the paper palette so
+   * components written against it (Navbar, Browse, Favorites, RecipeCard, RecipeModal, Footer)
+   * stay readable and on-theme. Note the inversion: "cream" text is now ink, "bg"/"surface" are paper.
+   * Migrate those files to paper/ink/tomato tokens, then delete this block.
+   */
+  --color-bg: #f4ecdf;
+  --color-surface: #fbf6ec;
+  --color-surface-2: #efe5d3;
+  --color-cream: #1c1915;
+  --color-muted: #5e554a;
+  --color-lime: #a8301d;
 }
 
-html { background: var(--color-bg); }
-body { @apply bg-bg text-cream font-sans antialiased; }
+html { background: var(--color-paper); }
+body { @apply bg-paper text-ink font-sans antialiased; }
+
+/*
+ * Recipe-sheet paper: one fixed, non-interactive overlay (never repaints on scroll).
+ * Layers, top to bottom: feTurbulence grain, a vertical and a horizontal fold crease
+ * (soft highlight line beside a slightly darker shadow line), and an edge vignette.
+ * All very low alpha so ink text stays AA (checked against the darkest vignette corner).
+ */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -8px;
+  z-index: 100;
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.11 0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(90deg,
+      transparent calc(36% - 6px),
+      rgb(255 255 255 / 0.22) calc(36% - 1px),
+      rgb(28 25 21 / 0.045) calc(36% + 1px),
+      transparent calc(36% + 7px)),
+    linear-gradient(180deg,
+      transparent calc(58% - 6px),
+      rgb(255 255 255 / 0.18) calc(58% - 1px),
+      rgb(28 25 21 / 0.04) calc(58% + 1px),
+      transparent calc(58% + 7px)),
+    radial-gradient(ellipse 120% 100% at 50% 45%, transparent 58%, rgb(28 25 21 / 0.06) 100%);
+  background-size: 200px 200px, 100% 100%, 100% 100%, 100% 100%;
+  translate: calc(var(--mx, 0) * -3px) calc(var(--my, 0) * -3px);
+  transition: translate 0.8s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/*
+ * Cursor depth (values come from useCursorDepth; they stay 0 on touch / reduced motion).
+ * Parallax: paper moves least, stickers more, the pot most. Tilt: up to 6deg toward the cursor.
+ */
+.depth-tokens,
+.depth-pot {
+  transition: translate 0.8s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.depth-tokens { translate: calc(var(--mx, 0) * -7px) calc(var(--my, 0) * -5px); }
+.depth-pot { translate: calc(var(--mx, 0) * -14px) calc(var(--my, 0) * -10px); }
+
+[data-tilt] {
+  transform: perspective(900px) rotateX(calc(var(--ty, 0) * -6deg)) rotateY(calc(var(--tx, 0) * 6deg));
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* A sticker being dragged (by the user or the guided demo) lifts off the page. */
+[data-token] [data-face] {
+  transition: box-shadow 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-token][data-dragging] [data-face] {
+  box-shadow: 3px 3px 0 #1c1915, 0 22px 32px -10px rgb(28 25 21 / 0.35);
+}

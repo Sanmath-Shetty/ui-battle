@@ -1,369 +1,412 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import gsap from 'gsap'
+import { Draggable } from 'gsap/Draggable'
+import { Flip } from 'gsap/Flip'
 import { useGSAP } from '@gsap/react'
+import IngredientToken from './hero/IngredientToken.jsx'
+import Pot, { splashPot } from './hero/Pot.jsx'
+import PantrySearch from './hero/PantrySearch.jsx'
+import MatchStrip from './hero/MatchStrip.jsx'
+import GhostDemo from './GhostDemo.jsx'
+import { useCursorDepth } from './hero/useCursorDepth.js'
+import { INGREDIENTS, IngredientArt } from './hero/ingredients.jsx'
 
-gsap.registerPlugin(useGSAP)
+gsap.registerPlugin(Draggable, Flip, useGSAP)
 
-// Angle is clockwise from 12 o'clock; radius is a fraction of the radar's half-width.
-const BLIPS = [
-  { name: 'tomato', emoji: '🍅', angle: 12, radius: 0.78 },
-  { name: 'egg', emoji: '🥚', angle: 52, radius: 0.5 },
-  { name: 'onion', emoji: '🧅', angle: 84, radius: 0.8 },
-  { name: 'paneer', emoji: '🧀', angle: 124, radius: 0.56 },
-  { name: 'rice', emoji: '🍚', angle: 160, radius: 0.8 },
-  { name: 'potato', emoji: '🥔', angle: 196, radius: 0.48 },
-  { name: 'chicken', emoji: '🍗', angle: 232, radius: 0.8 },
-  { name: 'garlic', emoji: '🧄', angle: 270, radius: 0.54 },
-  { name: 'spinach', emoji: '🥬', angle: 304, radius: 0.8 },
-  { name: 'chili', emoji: '🌶️', angle: 340, radius: 0.5 },
-]
+// Stickers sit on a loose arc over the pot, from lower-left (200deg) to lower-right (-20deg).
+const ARC = INGREDIENTS.map((_, i) => 200 - (i * 220) / (INGREDIENTS.length - 1))
+// The sticker that carries the "drag me in" arrow and does the load nudge (upper-left of the arc).
+const HINT_INDEX = 3
 
-const SWEEP_SECONDS = 9
+const HEADLINE = ['What’s', 'in', 'your', 'kitchen?']
 
-function polar(angle, radius) {
-  const rad = (angle * Math.PI) / 180
-  return { x: 50 + Math.sin(rad) * radius * 50, y: 50 - Math.cos(rad) * radius * 50 }
-}
+// Stage geometry (md and up). Height tracks the viewport so hero + match strip fit in 100vh;
+// pot width follows the stage height but never takes more than 44% of the stage width (cqw);
+// the arc radii hug the pot.
+const STAGE = [
+  '@container relative',
+  'md:h-(--stage-h)',
+  'md:[--stage-h:clamp(400px,calc(100dvh_-_300px),660px)]',
+  'md:[--pot-w:min(calc(var(--stage-h)_*_0.68),44cqw)]',
+  'md:[--cy:calc(var(--stage-h)_*_0.53)]',
+  'md:[--rx:calc(var(--pot-w)_*_0.5_+_64px)]',
+  'md:[--ry:calc(var(--pot-w)_*_0.44_+_56px)]',
+].join(' ')
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function RadarRings() {
+function centerOf(rect) {
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+}
+
+/** Fly a copy of a sticker face between two screen points along an arc. */
+function flyFace(layer, face, from, to, direction) {
+  const size = face.getBoundingClientRect()
+  const clone = face.cloneNode(true)
+  clone.removeAttribute('data-face')
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: `${from.x - size.width / 2}px`,
+    top: `${from.y - size.height / 2}px`,
+    margin: '0',
+    transform: '',
+  })
+  layer.appendChild(clone)
+
+  const into = direction === 'in'
+  const d = 0.75
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const peak = Math.min(0, dy) - 110
+
+  return new Promise((resolve) => {
+    gsap
+      .timeline({
+        onComplete() {
+          clone.remove()
+          resolve()
+        },
+      })
+      .to(clone, { x: dx, duration: d, ease: 'power1.inOut' }, 0)
+      .to(clone, { y: peak, duration: d * 0.45, ease: 'power2.out' }, 0)
+      .to(clone, { y: dy, duration: d * 0.55, ease: into ? 'power2.in' : 'bounce.out' }, d * 0.45)
+      .fromTo(
+        clone,
+        { scale: into ? 1 : 0.4, rotation: into ? 0 : -140 },
+        { scale: into ? 0.4 : 1, rotation: into ? 160 : 0, duration: d, ease: 'power1.inOut' },
+        0,
+      )
+  })
+}
+
+function Headline() {
   return (
-    <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full" aria-hidden="true">
-      {[98, 74, 50, 26].map((r) => (
-        <circle key={r} cx="100" cy="100" r={r} fill="none" stroke="#c8f169" strokeOpacity="0.16" strokeWidth="0.4" />
-      ))}
-      <line x1="100" y1="2" x2="100" y2="198" stroke="#c8f169" strokeOpacity="0.08" strokeWidth="0.3" />
-      <line x1="2" y1="100" x2="198" y2="100" stroke="#c8f169" strokeOpacity="0.08" strokeWidth="0.3" />
-      {Array.from({ length: 72 }, (_, i) => (
-        <line
-          key={i}
-          x1="100" y1="2" x2="100" y2={i % 6 === 0 ? 6.5 : 4.5}
-          stroke="#c8f169" strokeOpacity={i % 6 === 0 ? 0.4 : 0.18} strokeWidth="0.35"
-          transform={`rotate(${i * 5} 100 100)`}
-        />
-      ))}
+    <h1
+      id="hero-heading"
+      aria-label="What’s in your kitchen?"
+      className="font-display text-[clamp(3rem,7vw,7.5rem)] font-extrabold leading-[0.9] tracking-[-0.045em]"
+    >
+      {HEADLINE.map((word) => {
+        const letters = (
+          <span aria-hidden="true" className="inline-block overflow-hidden whitespace-nowrap pb-[0.06em] align-bottom">
+            {[...word].map((letter, li) => (
+              <span key={li} data-letter className={`inline-block ${word === 'kitchen?' ? 'text-tomato' : ''}`}>
+                {letter}
+              </span>
+            ))}
+          </span>
+        )
+        if (word !== 'kitchen?') return <span key={word} className="mr-[0.2em] inline-block align-bottom">{letters}</span>
+        return (
+          <span key={word} className="relative inline-block align-bottom">
+            {letters}
+            <ScribbleUnderline />
+          </span>
+        )
+      })}
+    </h1>
+  )
+}
+
+/** Hand-drawn double-stroke underline under "kitchen" (not the question mark). Drawn in on load. */
+function ScribbleUnderline() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 300 30"
+      preserveAspectRatio="none"
+      className="pointer-events-none absolute -bottom-[0.1em] left-[0.02em] h-[0.26em] w-[86%] overflow-visible"
+    >
+      <path
+        data-scribble
+        pathLength="1"
+        d="M4 13C52 7 118 4 188 6c40 1 78 3 106 6M296 12C220 13 120 15 40 22c-12 1-22 3-30 5"
+        fill="none"
+        stroke="#F2B23A"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray="1"
+        strokeDashoffset="0"
+      />
     </svg>
   )
 }
 
-function Blip({ blip, active, onToggle }) {
-  const { x, y } = polar(blip.angle, blip.radius)
+function PotChips({ selected, onRemove }) {
+  if (selected.length === 0) return null
   return (
-    <button
-      type="button"
-      data-blip={blip.name}
-      onClick={() => onToggle(blip.name)}
-      aria-pressed={active}
-      aria-label={`${active ? 'Remove' : 'Add'} ${blip.name}`}
-      className="group absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-lime"
-      style={{ left: `${x}%`, top: `${y}%` }}
-    >
-      <span data-ping className="pointer-events-none absolute inset-1 rounded-full border border-lime opacity-0" />
-      {active && <span data-pulse className="pointer-events-none absolute inset-0 rounded-full bg-lime/25" />}
-      <span
-        className={`relative flex h-9 w-9 items-center justify-center rounded-full text-lg transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:scale-110 ${
-          active
-            ? 'bg-lime/20 shadow-[0_0_24px_4px_rgba(200,241,105,0.55)] ring-1 ring-lime'
-            : 'bg-surface-2/80 ring-1 ring-cream/10'
-        }`}
-      >
-        <span aria-hidden="true">{blip.emoji}</span>
-      </span>
-      <span
-        className={`pointer-events-none absolute top-full mt-0.5 whitespace-nowrap text-[10px] font-medium capitalize tracking-wide transition-colors duration-500 md:text-[11px] ${
-          active ? 'text-lime' : 'text-muted'
-        }`}
-      >
-        {blip.name}
-      </span>
-    </button>
-  )
-}
-
-function Radar({ selected, onToggle, matchCount }) {
-  const scope = useRef(null)
-  const countRef = useRef(null)
-  const shown = useRef({ value: matchCount })
-
-  // Sweep, pings and cursor tilt.
-  useGSAP(
-    (_, contextSafe) => {
-      if (prefersReducedMotion()) return
-      const q = gsap.utils.selector(scope)
-      const tilt = q('[data-tilt]')[0]
-      const pings = BLIPS.map((b) => q(`[data-blip="${b.name}"] [data-ping]`)[0])
-      let last = 0
-
-      gsap.to(q('[data-sweep]'), {
-        rotate: 360,
-        duration: SWEEP_SECONDS,
-        ease: 'none',
-        repeat: -1,
-        onUpdate() {
-          const angle = (this.progress() * 360) % 360
-          BLIPS.forEach((b, i) => {
-            const crossed = last <= angle ? b.angle > last && b.angle <= angle : b.angle > last || b.angle <= angle
-            if (crossed) {
-              gsap.fromTo(pings[i], { scale: 0.7, autoAlpha: 0.8 }, { scale: 2, autoAlpha: 0, duration: 1.1, ease: 'power3.out' })
-            }
-          })
-          last = angle
-        },
-      })
-
-      const rotX = gsap.quickTo(tilt, 'rotationX', { duration: 0.8, ease: 'power3.out' })
-      const rotY = gsap.quickTo(tilt, 'rotationY', { duration: 0.8, ease: 'power3.out' })
-      const onMove = contextSafe((e) => {
-        const r = scope.current.getBoundingClientRect()
-        const px = (e.clientX - r.left) / r.width - 0.5
-        const py = (e.clientY - r.top) / r.height - 0.5
-        rotY(gsap.utils.clamp(-8, 8, px * 14))
-        rotX(gsap.utils.clamp(-8, 8, -py * 14))
-      })
-      const onLeave = contextSafe(() => {
-        rotX(0)
-        rotY(0)
-      })
-      const el = scope.current
-      el.addEventListener('pointermove', onMove)
-      el.addEventListener('pointerleave', onLeave)
-      return () => {
-        el.removeEventListener('pointermove', onMove)
-        el.removeEventListener('pointerleave', onLeave)
-      }
-    },
-    { scope },
-  )
-
-  // Glow pulse on selected blips.
-  useGSAP(
-    () => {
-      if (prefersReducedMotion()) return
-      gsap.fromTo(
-        gsap.utils.toArray('[data-pulse]', scope.current),
-        { scale: 0.85, autoAlpha: 0.8 },
-        { scale: 1.6, autoAlpha: 0, duration: 1.4, ease: 'power2.out', repeat: -1 },
-      )
-    },
-    { scope, dependencies: [selected], revertOnUpdate: true },
-  )
-
-  // Animated live counter.
-  useGSAP(
-    () => {
-      const render = () => {
-        countRef.current.textContent = Math.round(shown.current.value)
-      }
-      if (prefersReducedMotion()) {
-        shown.current.value = matchCount
-        render()
-        return
-      }
-      gsap.to(shown.current, { value: matchCount, duration: 0.6, ease: 'power3.out', onUpdate: render })
-      gsap.fromTo(countRef.current, { scale: 1.15 }, { scale: 1, duration: 0.5, ease: 'power3.out' })
-    },
-    { dependencies: [matchCount] },
-  )
-
-  return (
-    <div ref={scope} className="relative mx-auto w-[min(86vw,520px)] [perspective:1200px]">
-      <div data-tilt className="relative aspect-square w-full [transform-style:preserve-3d]">
-        <div className="absolute inset-0 rounded-full bg-white/[0.03] p-1.5 ring-1 ring-cream/10">
-          <div className="relative h-full w-full rounded-full bg-surface/70 shadow-[inset_0_1px_1px_rgba(244,239,227,0.08),0_0_90px_-25px_rgba(200,241,105,0.45)]">
-            <RadarRings />
-          </div>
-        </div>
-
-        <div
-          data-sweep
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-1.5 rounded-full"
-          style={{
-            background:
-              'conic-gradient(from 0deg, rgba(200,241,105,0) 0deg, rgba(200,241,105,0) 290deg, rgba(200,241,105,0.18) 350deg, rgba(200,241,105,0.55) 360deg)',
-          }}
-        >
-          <span className="absolute left-1/2 top-0 h-1/2 w-px -translate-x-1/2 bg-gradient-to-t from-lime/0 to-lime/70" />
-        </div>
-
-        <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-[30%] w-[30%] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-bg/85 text-center ring-1 ring-lime/20">
-          <span ref={countRef} aria-hidden="true" className="font-display text-3xl font-semibold leading-none text-lime md:text-5xl">
-            {matchCount}
-          </span>
-          <span className="mt-1 text-[10px] uppercase tracking-[0.18em] text-muted md:text-[11px]">
-            {matchCount === 1 ? 'recipe found' : 'recipes found'}
-          </span>
-        </div>
-        <p className="sr-only" aria-live="polite">
-          {matchCount} {matchCount === 1 ? 'recipe' : 'recipes'} found
-        </p>
-
-        {BLIPS.map((blip) => (
-          <Blip key={blip.name} blip={blip} active={selected.includes(blip.name)} onToggle={onToggle} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function IngredientSearch({ selected, onToggle, suggestions }) {
-  const [query, setQuery] = useState('')
-
-  const add = (raw) => {
-    const name = raw.trim().toLowerCase()
-    if (name && !selected.includes(name)) onToggle(name)
-    setQuery('')
-  }
-
-  return (
-    <div className="rounded-[2rem] bg-white/[0.03] p-1.5 ring-1 ring-cream/10">
-      <div className="rounded-[calc(2rem-0.375rem)] bg-surface p-4 shadow-[inset_0_1px_1px_rgba(244,239,227,0.08)] md:p-5">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            add(query)
-          }}
-          className="flex items-center gap-3 rounded-full bg-bg/70 py-1.5 pl-5 pr-1.5 ring-1 ring-cream/10 transition-shadow duration-500 focus-within:ring-lime/50"
-        >
-          <label htmlFor="pantry-search" className="sr-only">Add an ingredient</label>
-          <input
-            id="pantry-search"
-            list="pantry-suggestions"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Add an ingredient, e.g. tomato"
-            autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-sm text-cream placeholder:text-muted/70 focus:outline-none md:text-base"
-          />
-          <datalist id="pantry-suggestions">
-            {suggestions.filter((s) => !selected.includes(s)).map((s) => <option key={s} value={s} />)}
-          </datalist>
+    <ul className="mt-3 flex flex-wrap justify-center gap-2" aria-label="In the pot">
+      {selected.map((name) => (
+        <li key={name}>
           <button
-            type="submit"
-            className="h-11 shrink-0 rounded-full bg-cream/10 px-5 text-sm font-medium text-cream transition-colors duration-500 hover:bg-cream/15 active:scale-[0.98]"
+            type="button"
+            onClick={(e) => onRemove(name, e)}
+            aria-label={`Take ${name} out of the pot`}
+            className="group inline-flex h-11 items-center gap-1.5 rounded-full border-2 border-ink bg-paper-2 pl-1.5 pr-3 transition-transform duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tomato"
           >
-            Add
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-paper">
+              <IngredientArt name={name} className="h-6 w-6" />
+            </span>
+            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em]">{name}</span>
+            <svg viewBox="0 0 12 12" className="ml-0.5 h-2.5 w-2.5 transition-transform duration-300 group-hover:rotate-90" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="M3 3l6 6M9 3l-6 6" />
+            </svg>
           </button>
-        </form>
-
-        <ul className="mt-4 flex min-h-11 flex-wrap gap-2" aria-label="Selected ingredients">
-          {selected.length === 0 && (
-            <li className="flex items-center text-sm text-muted">Tap a blip on the radar or type above.</li>
-          )}
-          {selected.map((name) => (
-            <li key={name}>
-              <button
-                type="button"
-                onClick={() => onToggle(name)}
-                aria-label={`Remove ${name}`}
-                className="group inline-flex h-11 items-center gap-2 rounded-full bg-lime/10 pl-4 pr-2 text-sm font-medium capitalize text-lime ring-1 ring-lime/30 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-lime/15"
-              >
-                {name}
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-lime/15 transition-transform duration-500 group-hover:rotate-90" aria-hidden="true">
-                  <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.4">
-                    <path d="M3 3l6 6M9 3l-6 6" />
-                  </svg>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 
 /**
- * Controlled by App: `selected` and `onToggle` are the same state RadarFinder reads.
- * `matchCount` is computed in App (via matchRecipes) so both sections agree.
+ * "Drop it in the pot". Controlled by App: `selected` / `onToggle` are the shared pantry
+ * state that RadarFinder also reads, and `matches` comes from matchRecipes in App.
+ * `ready` holds the load reveal (letters already masked) until the Intro wipe starts clearing.
  */
-export default function Hero({ selected, onToggle, matchCount, resultsId = 'finder' }) {
+export default function Hero({ selected, onToggle, matches, ready = true, resultsId = 'finder' }) {
   const root = useRef(null)
+  const potRef = useRef(null)
+  const layerRef = useRef(null)
+  const searchRef = useRef(null)
+  const prevSelected = useRef(selected)
+  const flipState = useRef(null)
+  const lastDragEnd = useRef(0)
+  const overRef = useRef(false)
+  const hintGone = useRef(false)
+  const loadTl = useRef(null)
+  const [dropReady, setDropReady] = useState(false)
+  const [settled, setSettled] = useState(false)
+  useCursorDepth()
 
+  const tokenEl = (name) => root.current?.querySelector(`[data-token="${name}"]`)
+  const mouthPoint = () => centerOf(potRef.current.querySelector('[data-pot-mouth]').getBoundingClientRect())
+
+  // Every pot change goes through here so the match cards can be Flip-captured first.
+  const toggle = useCallback(
+    (name) => {
+      flipState.current = Flip.getState(root.current.querySelectorAll('[data-flip-id]'))
+      onToggle(name)
+    },
+    [onToggle],
+  )
+  const toggleRef = useRef(toggle)
+  toggleRef.current = toggle
+
+  const pickToken = (name, e) => {
+    if (Date.now() - lastDragEnd.current < 250) return
+    toggle(name)
+    if (e.detail === 0) {
+      // Keyboard: keep focus on the ring by moving to the next sticker still out of the pot.
+      const order = INGREDIENTS.map((i) => i.name)
+      const start = order.indexOf(name)
+      const next = [...order.slice(start + 1), ...order.slice(0, start)].find((n) => !selected.includes(n))
+      requestAnimationFrame(() => (next ? tokenEl(next)?.focus() : searchRef.current?.focus()))
+    }
+  }
+
+  const removeChip = (name, e) => {
+    toggle(name)
+    if (e.detail === 0) requestAnimationFrame(() => (tokenEl(name) ?? searchRef.current)?.focus())
+  }
+
+  // Load: letters rise in, the stage settles, stickers pop, then the hint sticker nudges toward the pot.
   useGSAP(
     () => {
       if (prefersReducedMotion()) return
-      gsap
-        .timeline({ defaults: { ease: 'power3.out' } })
-        .from('[data-word]', { yPercent: 110, duration: 0.8, stagger: 0.08 })
-        .from('[data-rise]', { y: 24, autoAlpha: 0, duration: 0.7, stagger: 0.1 }, '-=0.4')
-        .from('[data-radar-wrap]', { scale: 0.92, autoAlpha: 0, duration: 0.8 }, 0.2)
+      const tl = gsap
+        .timeline({ paused: !ready, defaults: { ease: 'power3.out' } })
+        .from('[data-letter]', { yPercent: 105, rotation: 8, duration: 0.8, stagger: 0.028 })
+        .from('[data-scribble]', { strokeDashoffset: 1, duration: 0.6, ease: 'power2.inOut' }, 0.7)
+        .from('[data-pot-stage]', { y: 40, autoAlpha: 0, duration: 0.8 }, 0.15)
+        .from('[data-float]', { scale: 0, duration: 0.6, ease: 'back.out(2)', stagger: 0.04 }, 0.3)
+        .from('[data-intro]', { y: 20, autoAlpha: 0, duration: 0.7, stagger: 0.08 }, 0.45)
+
+      const hintToken = tokenEl(INGREDIENTS[HINT_INDEX].name)
+      if (window.matchMedia('(min-width: 768px)').matches && selected.length === 0) {
+        tl.from('[data-hint]', { autoAlpha: 0, duration: 0.5 }, '-=0.2')
+        tl.add(() => {
+          const from = centerOf(hintToken.getBoundingClientRect())
+          const to = mouthPoint()
+          const len = Math.hypot(to.x - from.x, to.y - from.y) || 1
+          gsap
+            .timeline()
+            .to(hintToken, { x: ((to.x - from.x) / len) * 22, y: ((to.y - from.y) / len) * 22, duration: 0.35, ease: 'power2.out' })
+            .to(hintToken, { x: 0, y: 0, duration: 0.9, ease: 'elastic.out(1, 0.4)' })
+        }, '+=0.2')
+      }
+
+      gsap.utils.toArray('[data-float]', root.current).forEach((el, i) => {
+        gsap.to(el, {
+          y: -5 - (i % 3) * 2,
+          duration: 2.2 + (i % 4) * 0.35,
+          ease: 'sine.inOut',
+          yoyo: true,
+          repeat: -1,
+          delay: i * 0.17,
+        })
+      })
+      loadTl.current = tl
     },
     { scope: root },
   )
 
-  const showRecipes = () => {
-    document.getElementById(resultsId)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-  }
+  // Play the reveal once the intro hands off; the guided demo waits for it to finish.
+  useGSAP(() => {
+    if (ready) loadTl.current?.play().then(() => setSettled(true))
+  }, { dependencies: [ready] })
 
-  const headline = [['Scan', 'your', 'pantry.'], ['Find', 'dinner.']]
+  // Drag into the pot (md and up; mobile and keyboard use tap / Enter / Space).
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia()
+      mm.add('(min-width: 768px)', () => {
+        const pot = potRef.current
+        const setOver = (value) => {
+          if (overRef.current === value) return
+          overRef.current = value
+          setDropReady(value)
+        }
+        const drags = Draggable.create(gsap.utils.toArray('[data-token]', root.current), {
+          type: 'x,y',
+          dragClickables: true,
+          minimumMovement: 6,
+          zIndexBoost: false,
+          onDragStart() {
+            this.target.parentElement.style.zIndex = '30'
+            this.target.setAttribute('data-dragging', '')
+            gsap.to(this.target, { scale: 1.08, duration: 0.2, ease: 'power3.out' })
+          },
+          onDrag() {
+            setOver(this.hitTest(pot.querySelector('[data-pot-mouth]'), '20%'))
+          },
+          onDragEnd() {
+            lastDragEnd.current = Date.now()
+            const over = overRef.current
+            setOver(false)
+            this.target.parentElement.style.zIndex = ''
+            this.target.removeAttribute('data-dragging')
+            gsap.to(this.target, { scale: 1, duration: 0.25, ease: 'power3.out' })
+            if (over) toggleRef.current(this.target.dataset.token)
+            else gsap.to(this.target, { x: 0, y: 0, duration: 0.8, ease: 'elastic.out(1, 0.55)' })
+          },
+        })
+        return () => drags.forEach((d) => d.kill())
+      })
+      return () => mm.revert()
+    },
+    { scope: root },
+  )
+
+  // React to pot changes from anywhere (stickers, chips, search, RadarFinder).
+  useGSAP(
+    () => {
+      const prev = prevSelected.current
+      prevSelected.current = selected
+      const reduce = prefersReducedMotion()
+      const layer = layerRef.current
+      const hint = root.current.querySelector('[data-hint]')
+
+      if (selected.length > 0 && !hintGone.current) {
+        hintGone.current = true
+        if (prev === selected || reduce) gsap.set(hint, { autoAlpha: 0 })
+        else gsap.to(hint, { autoAlpha: 0, duration: 0.3, overwrite: true })
+      }
+
+      if (prev === selected) {
+        selected.forEach((name) => tokenEl(name) && gsap.set(tokenEl(name), { autoAlpha: 0 }))
+        return
+      }
+
+      selected.filter((n) => !prev.includes(n)).forEach((name) => {
+        const token = tokenEl(name)
+        if (!token) return splashPot(potRef.current)
+        const face = token.querySelector('[data-face]')
+        const from = centerOf(face.getBoundingClientRect())
+        gsap.set(token, { x: 0, y: 0, autoAlpha: 0 })
+        if (reduce) return
+        flyFace(layer, face, from, mouthPoint(), 'in').then(() => splashPot(potRef.current))
+      })
+
+      prev.filter((n) => !selected.includes(n)).forEach((name) => {
+        const token = tokenEl(name)
+        if (!token) return
+        if (reduce) return gsap.set(token, { autoAlpha: 1 })
+        const face = token.querySelector('[data-face]')
+        gsap.set(token, { visibility: 'visible', opacity: 0 })
+        flyFace(layer, face, mouthPoint(), centerOf(face.getBoundingClientRect()), 'out').then(() =>
+          gsap.set(token, { opacity: 1 }),
+        )
+      })
+
+      if (flipState.current) {
+        Flip.from(flipState.current, {
+          targets: gsap.utils.toArray('[data-flip-id]', root.current),
+          duration: reduce ? 0 : 0.7,
+          ease: 'power3.out',
+          onEnter: (els) => !reduce && gsap.fromTo(els, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power3.out' }),
+        })
+        flipState.current = null
+      }
+    },
+    { scope: root, dependencies: [selected] },
+  )
+
+  const count = selected.length ? matches.length : 0
 
   return (
     <section
       ref={root}
       id="top"
-      aria-labelledby="hero-title"
-      className="relative w-full overflow-x-clip px-4 pb-24 pt-28 md:px-8 md:pb-32 md:pt-36"
+      aria-labelledby="hero-heading"
+      className="relative flex w-full flex-col overflow-x-clip px-4 pb-16 pt-24 md:px-8 lg:min-h-[100dvh] lg:justify-center lg:pb-6"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            'radial-gradient(45% 50% at 75% 45%, rgba(200,241,105,0.09), transparent 70%), radial-gradient(35% 40% at 10% 90%, rgba(255,107,61,0.07), transparent 70%)',
-        }}
-      />
-
-      <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-        <div className="order-2 lg:order-1">
-          <h1
-            id="hero-title"
-            className="font-display text-[clamp(2.6rem,6vw,5.25rem)] font-semibold leading-[1] tracking-tight text-cream"
-          >
-            {headline.map((line, li) => (
-              <span key={li} className="block">
-                {line.map((word) => (
-                  <span key={word} className="mr-[0.22em] inline-block overflow-hidden pb-[0.1em] align-bottom">
-                    <span data-word className={`inline-block ${word === 'dinner.' ? 'italic text-lime' : ''}`}>
-                      {word}
-                    </span>
-                  </span>
-                ))}
-              </span>
-            ))}
-          </h1>
-
-          <p data-rise className="mt-6 max-w-lg text-base leading-relaxed text-muted md:text-lg">
-            Tell the radar what is in your kitchen. It ranks every recipe by how much you already have, so dinner starts with zero extra shopping.
+      <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-12 lg:items-center lg:gap-8 2xl:max-w-[1600px]">
+        <div className="lg:col-span-5">
+          <Headline />
+          <p data-intro className="mt-5 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-tomato-ink">
+            Drop it in the pot
           </p>
-
-          <div data-rise className="mt-8 max-w-xl">
-            <IngredientSearch selected={selected} onToggle={onToggle} suggestions={BLIPS.map((b) => b.name)} />
-          </div>
-
-          <div data-rise className="mt-6">
-            <button
-              type="button"
-              onClick={showRecipes}
-              className="group inline-flex items-center gap-3 rounded-full bg-lime py-2 pl-6 pr-2 font-semibold text-bg shadow-[0_0_40px_-10px_rgba(200,241,105,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98]"
-            >
-              Show recipes
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg/10 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-0.5 group-hover:scale-105" aria-hidden="true">
-                <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4">
-                  <path d="M6 2v8M2.5 6.5 6 10l3.5-3.5" />
-                </svg>
-              </span>
-            </button>
+          <p data-intro className="mt-2 max-w-md text-base leading-snug text-ink-soft lg:text-lg">
+            Drag what you have into the pot. We line up the recipes you can cook right now, best match first.
+          </p>
+          <div data-intro className="mt-5 max-w-md">
+            <PantrySearch ref={searchRef} selected={selected} suggestions={INGREDIENTS.map((i) => i.name)} onAdd={toggle} />
           </div>
         </div>
 
-        <div data-radar-wrap className="order-1 py-4 lg:order-2">
-          <Radar selected={selected} onToggle={onToggle} matchCount={matchCount} />
+        <div className={`lg:col-span-7 ${STAGE}`}>
+          <ul
+            aria-label="Ingredients"
+            className="depth-tokens -mx-4 flex gap-4 overflow-x-auto px-4 py-4 [scrollbar-width:none] md:absolute md:inset-0 md:mx-0 md:block md:overflow-visible md:p-0"
+          >
+            {INGREDIENTS.map((item, i) => (
+              <IngredientToken key={item.name} item={item} angle={ARC[i]} hint={i === HINT_INDEX} onPick={pickToken} />
+            ))}
+          </ul>
+
+          <div
+            data-pot-stage
+            className="relative z-10 mx-auto -mt-6 w-[min(84vw,340px)] md:absolute md:left-1/2 md:top-(--cy) md:mt-0 md:w-(--pot-w) md:-translate-x-1/2 md:-translate-y-1/2"
+          >
+            <div className="depth-pot">
+              <div data-tilt>
+                <Pot ref={potRef} items={selected} count={count} over={dropReady} />
+              </div>
+            </div>
+            <div className="md:absolute md:inset-x-[-4rem] md:top-full">
+              <PotChips selected={selected} onRemove={removeChip} />
+            </div>
+          </div>
         </div>
       </div>
+
+      <MatchStrip matches={selected.length ? matches : []} resultsId={resultsId} />
+
+      <div ref={layerRef} aria-hidden="true" className="pointer-events-none fixed inset-0 z-40" />
+      <GhostDemo active={settled} rootRef={root} onAdd={(name) => toggleRef.current(name)} onDropHover={setDropReady} />
     </section>
   )
 }

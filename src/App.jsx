@@ -4,6 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useGSAP } from '@gsap/react'
 import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
+import Intro, { shouldPlayIntro } from './components/Intro.jsx'
 import Browse from './components/Browse.jsx'
 import Favorites from './components/Favorites.jsx'
 import Footer from './components/Footer.jsx'
@@ -26,11 +27,16 @@ export default function App() {
 
   const matches = useMemo(() => matchRecipes(recipes, selected), [selected])
 
+  // Intro plays once per session; the hero holds its reveal until the intro wipe clears.
+  const [introActive, setIntroActive] = useState(shouldPlayIntro)
+  const [heroReady, setHeroReady] = useState(() => !introActive)
+
   return (
     <>
+      {introActive && <Intro onReveal={() => setHeroReady(true)} onDone={() => setIntroActive(false)} />}
       <Navbar favoritesCount={favoriteIds.length} />
       <main className="w-full max-w-full overflow-x-hidden">
-        <Hero selected={selected} onToggle={toggleIngredient} matchCount={matches.length} />
+        <Hero selected={selected} onToggle={toggleIngredient} matches={matches} ready={heroReady} />
         <Browse recipes={recipes} pantry={selected} onOpenRecipe={setOpenRecipe} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
         <Favorites recipes={recipes} pantry={selected} favoriteIds={favoriteIds} onOpenRecipe={setOpenRecipe} onToggleFavorite={toggleFavorite} />
       </main>
