@@ -102,7 +102,7 @@ function DietFilter({ value, onChange }) {
             type="button"
             aria-pressed={active}
             onClick={() => onChange(diet.value)}
-            className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 transition-colors duration-300 ${label} ${focusRing} ${
+            className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-3.5 transition-colors duration-300 ${label} ${focusRing} ${
               active ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'
             }`}
           >

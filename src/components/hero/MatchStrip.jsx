@@ -89,7 +89,7 @@ export default function MatchStrip({ matches, resultsId, onOpenRecipe }) {
   const empty = Array.from({ length: 3 - top.length })
 
   return (
-    <div className="mx-auto mt-8 w-full max-w-7xl lg:mt-4 2xl:max-w-[1600px]">
+    <div className="mx-auto mt-4 w-full max-w-7xl md:mt-8 lg:mt-4 2xl:max-w-[1600px]">
       <div className="mb-3 flex items-baseline justify-between gap-4 border-b border-ink/15 pb-2">
         <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em]">Top matches</h2>
         <button

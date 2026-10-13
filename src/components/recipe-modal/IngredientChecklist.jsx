@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 
@@ -32,18 +32,20 @@ function HandCheck({ on }) {
 }
 
 /**
- * Ingredients as a hand-ticked list. Items already in the pot arrive ticked (their checks draw in);
+ * Ingredients as a hand-ticked list. On phones it sits under cook mode and starts collapsed. Items already in the pot arrive ticked (their checks draw in);
  * missing ones get an "add" chip that puts them in the shared pot. Ticking strikes the line through.
  */
-export default function IngredientChecklist({ ingredients, pantry, ticked, onTick, onAdd }) {
+export default function IngredientChecklist({ ingredients, pantry, ticked, onTick, onAdd, className = '' }) {
   const scope = useRef(null)
+  const [open, setOpen] = useState(false)
 
   // Pre-ticked rows draw their checks in once the sheet has landed.
   useGSAP(
     () => {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      const checks = scope.current.querySelectorAll('[data-check="on"]')
+      if (!checks.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
       gsap.fromTo(
-        '[data-check="on"]',
+        checks,
         { strokeDashoffset: 1 },
         { strokeDashoffset: 0, duration: 0.5, stagger: 0.09, delay: 0.5, ease: 'power2.out', clearProps: 'strokeDashoffset' },
       )
@@ -52,17 +54,30 @@ export default function IngredientChecklist({ ingredients, pantry, ticked, onTic
   )
 
   return (
-    <section ref={scope} aria-labelledby="sheet-ingredients">
-      <div className="flex items-baseline justify-between gap-3">
+    <section ref={scope} aria-labelledby="sheet-ingredients" className={className}>
+      <div className="flex items-center justify-between gap-3">
         <h3 id="sheet-ingredients" className="font-mono text-[11px] font-medium uppercase tracking-[0.16em]">
-          Ingredients
+          {/* Phones: the heading is the toggle. Desktop: plain heading, list always open. */}
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls="sheet-ingredient-list"
+            className="-my-2 flex h-11 items-center gap-2 uppercase outline-none focus-visible:ring-2 focus-visible:ring-tomato-ink sm:hidden"
+          >
+            Ingredients
+            <svg viewBox="0 0 12 12" className={`h-3 w-3 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M2.5 4.5 6 8l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <span className="max-sm:hidden">Ingredients</span>
         </h3>
         <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-soft" aria-live="polite">
           {ticked.length}/{ingredients.length} ready
         </p>
       </div>
 
-      <ul className="mt-3 space-y-1">
+      <ul id="sheet-ingredient-list" className={`mt-3 space-y-1 ${open ? '' : 'max-sm:hidden'}`}>
         {ingredients.map((item) => {
           const on = ticked.includes(item)
           const inPot = pantry.includes(item)
@@ -80,13 +95,13 @@ export default function IngredientChecklist({ ingredients, pantry, ticked, onTic
                 </span>
               </label>
               {inPot ? (
-                <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-basil">in pot</span>
+                <span className="shrink-0 px-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-basil">in pot</span>
               ) : (
                 <button
                   type="button"
                   onClick={() => onAdd(item)}
                   aria-label={`Add ${item} to the pot`}
-                  className="inline-flex h-11 items-center gap-1 rounded-full px-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-tomato-ink outline-none ring-1 ring-tomato-ink/40 transition-colors duration-300 hover:bg-tomato-ink hover:text-paper focus-visible:ring-2 focus-visible:ring-tomato-ink"
+                  className="relative inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 font-mono text-[10px] font-medium uppercase leading-none tracking-[0.14em] text-tomato-ink outline-none ring-1 ring-tomato-ink/40 transition-colors duration-300 before:absolute before:-inset-x-1 before:-inset-y-1.5 before:content-[''] hover:bg-tomato-ink hover:text-paper focus-visible:ring-2 focus-visible:ring-tomato-ink"
                 >
                   <span aria-hidden="true">+</span> add
                 </button>

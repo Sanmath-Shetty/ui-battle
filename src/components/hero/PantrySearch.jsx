@@ -12,7 +12,7 @@ export default function PantrySearch({ ref, selected, suggestions, onAdd }) {
         if (name && !selected.includes(name)) onAdd(name)
         setQuery('')
       }}
-      className="flex items-center gap-2 rounded-full border-[1.5px] border-ink bg-paper-2 py-1.5 pl-5 pr-1.5 shadow-[3px_3px_0_#1C1915] transition-transform duration-300 focus-within:-translate-y-0.5"
+      className="flex items-center gap-2 rounded-full border-[1.5px] border-ink bg-paper-2 py-1.5 pl-5 pr-1.5 shadow-[3px_3px_0_#1C1915] transition-transform duration-300 focus-within:-translate-y-0.5 focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-tomato-ink"
     >
       <label htmlFor="pantry-search" className="sr-only">Type an ingredient to add it to the pot</label>
       <input

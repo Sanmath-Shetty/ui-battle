@@ -58,11 +58,10 @@ function PencilDots({ total, current }) {
   )
 }
 
-/** One step at a time: big type, timer when the step names a duration, Back / Next. */
-export default function CookMode({ steps, step, onStep, onFinish }) {
+/** One step at a time: big type, and a timer when the step names a duration. Back / Next live in CookNav. */
+export default function CookMode({ steps, step }) {
   const scope = useRef(null)
   const lastStep = useRef(step)
-  const isLast = step === steps.length - 1
   const seconds = parseDuration(steps[step])
 
   useGSAP(
@@ -94,28 +93,39 @@ export default function CookMode({ steps, step, onStep, onFinish }) {
 
       {seconds && <StepTimer key={step} seconds={seconds} />}
 
-      <div className="mt-6 max-sm:sticky max-sm:bottom-0 max-sm:-mx-5 max-sm:mt-8 max-sm:border-t max-sm:border-ink/15 max-sm:bg-parchment max-sm:px-5 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-3">
-        <div className="mb-3 flex justify-center sm:justify-start">
-          <PencilDots total={steps.length} current={step} />
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => onStep(step - 1)}
-            disabled={step === 0}
-            className="h-14 flex-1 rounded-full font-medium text-ink outline-none ring-2 ring-ink transition-colors duration-300 hover:bg-ink/5 focus-visible:ring-tomato-ink disabled:cursor-not-allowed disabled:opacity-35 sm:h-12 sm:flex-none sm:px-6"
-          >
-            ← Back
-          </button>
-          <button
-            type="button"
-            onClick={() => (isLast ? onFinish() : onStep(step + 1))}
-            className="h-14 flex-[2] rounded-full bg-ink font-semibold text-paper outline-none transition-[background-color,transform] duration-300 hover:bg-tomato-ink active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-tomato-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper-2 sm:ml-auto sm:h-12 sm:flex-none sm:px-7"
-          >
-            {isLast ? 'Finish cooking →' : 'Next step →'}
-          </button>
-        </div>
+      <div className="mt-5 flex justify-center sm:hidden">
+        <PencilDots total={steps.length} current={step} />
       </div>
+
     </section>
   )
 }
+
+/** Pencil-dot progress plus Back / Next. RecipeModal pins this in the sheet's footer so it never scrolls away. */
+export function CookNav({ steps, step, onStep, onFinish }) {
+  const isLast = step === steps.length - 1
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => onStep(step - 1)}
+        disabled={step === 0}
+        className="h-12 flex-1 rounded-full font-medium text-ink outline-none ring-2 ring-ink transition-colors duration-300 hover:bg-ink/5 focus-visible:ring-tomato-ink disabled:cursor-not-allowed disabled:opacity-35 sm:flex-none sm:px-6"
+      >
+        ← Back
+      </button>
+      <div className="hidden flex-1 justify-center sm:flex">
+        <PencilDots total={steps.length} current={step} />
+      </div>
+      <button
+        type="button"
+        onClick={() => (isLast ? onFinish() : onStep(step + 1))}
+        className="h-12 flex-[2] rounded-full bg-ink font-semibold text-paper outline-none transition-[background-color,transform] duration-300 hover:bg-tomato-ink active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-tomato-ink focus-visible:ring-offset-2 focus-visible:ring-offset-parchment sm:flex-none sm:px-7"
+      >
+        {isLast ? 'Finish cooking →' : 'Next step →'}
+      </button>
+    </div>
+  )
+}
+
+export { PencilDots }

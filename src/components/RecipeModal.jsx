@@ -199,6 +199,9 @@ export default function RecipeModal({ recipe, pantry = [], origin, onClose, isFa
   }
 
   const handleClosed = () => {
+    // The close event is async. In dev StrictMode the effect cleanup closes the dialog and the
+    // remount reopens it before this fires; a dialog that is open again was not closed by the user.
+    if (dialog.current?.open) return
     origin?.focus?.isConnected && origin.focus.focus({ preventScroll: true })
     onClose()
     afterClose.current?.()
@@ -211,11 +214,27 @@ export default function RecipeModal({ recipe, pantry = [], origin, onClose, isFa
   }
 
   const goTo = (n) => setStep(Math.max(0, Math.min(steps.length - 1, n)))
-  const onKeyDown = (e) => {
-    if (e.target.closest('input, textarea')) return
-    if (e.key === 'ArrowRight' && !finished) step === steps.length - 1 ? setFinished(true) : goTo(step + 1)
-    if (e.key === 'ArrowLeft') finished ? setFinished(false) : goTo(step - 1)
-  }
+
+  // Arrow keys step through cook mode. Listen on the document, not the dialog: when the focused
+  // control unmounts (e.g. a step's timer button), focus drops to <body> and the dialog stops
+  // receiving keys.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (closing.current || e.altKey || e.ctrlKey || e.metaKey || e.target.closest?.('input, textarea')) return
+      if (e.key === 'ArrowRight' && !finished) {
+        e.preventDefault()
+        if (step === steps.length - 1) setFinished(true)
+        else setStep(step + 1)
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (finished) setFinished(false)
+        else setStep(Math.max(0, step - 1))
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [step, finished, steps.length])
 
   // Portal to <body>: no ancestor overflow/transform can clip it (the dialog is in the top layer anyway).
   return createPortal(
@@ -227,7 +246,6 @@ export default function RecipeModal({ recipe, pantry = [], origin, onClose, isFa
         requestClose()
       }}
       onClose={handleClosed}
-      onKeyDown={onKeyDown}
       className="fixed inset-0 z-[100] m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden bg-transparent p-0 text-ink backdrop:bg-ink/45 backdrop:backdrop-blur-[3px]"
     >
       <div

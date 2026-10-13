@@ -220,7 +220,9 @@ export default function Hero({ selected, onToggle, matches, ready = true, result
         .timeline({ paused: !ready, defaults: { ease: 'power3.out' } })
         .from('[data-letter]', { yPercent: 105, rotation: 8, duration: 0.8, stagger: 0.028 })
         .from('[data-scribble]', { strokeDashoffset: 1, duration: 0.6, ease: 'power2.inOut' }, 0.7)
-        .from('[data-pot-stage]', { y: 40, autoAlpha: 0, duration: 0.8 }, 0.15)
+        // Animate the inner wrapper: the stage itself is centred with CSS `translate`, which GSAP would
+        // otherwise bake into a fixed px transform that goes stale when the viewport changes.
+        .from('[data-pot-enter]', { y: 40, autoAlpha: 0, duration: 0.8 }, 0.15)
         .from('[data-float]', { scale: 0, duration: 0.6, ease: 'back.out(2)', stagger: 0.04 }, 0.3)
         .from('[data-intro]', { y: 20, autoAlpha: 0, duration: 0.7, stagger: 0.08 }, 0.45)
 
@@ -380,7 +382,7 @@ export default function Hero({ selected, onToggle, matches, ready = true, result
         <div className={`lg:col-span-7 ${STAGE}`}>
           <ul
             aria-label="Ingredients"
-            className="depth-tokens -mx-4 flex gap-4 overflow-x-auto px-4 py-4 [scrollbar-width:none] md:absolute md:inset-0 md:mx-0 md:block md:overflow-visible md:p-0"
+            className="depth-tokens -mx-4 flex gap-4 overflow-x-auto overscroll-x-contain px-4 py-4 [scrollbar-width:none] max-md:mb-4 max-md:[mask-image:linear-gradient(to_right,#000_80%,transparent)] md:absolute md:inset-0 md:mx-0 md:block md:overflow-visible md:p-0"
           >
             {INGREDIENTS.map((item, i) => (
               <IngredientToken key={item.name} item={item} angle={ARC[i]} hint={i === HINT_INDEX} onPick={pickToken} />
@@ -389,15 +391,18 @@ export default function Hero({ selected, onToggle, matches, ready = true, result
 
           <div
             data-pot-stage
-            className="relative z-10 mx-auto -mt-6 w-[min(84vw,340px)] md:absolute md:left-1/2 md:top-(--cy) md:mt-0 md:w-(--pot-w) md:-translate-x-1/2 md:-translate-y-1/2"
+            className="relative z-10 mx-auto w-[min(80vw,300px)] max-md:pointer-events-none md:absolute md:left-1/2 md:top-(--cy) md:w-(--pot-w) md:-translate-x-1/2 md:-translate-y-1/2"
           >
-            <div className="depth-pot">
-              <div data-tilt>
-                <Pot ref={potRef} items={selected} count={count} over={dropReady} />
+            {/* Phones: tuck the pot into its own steam headroom (top ~29% of the SVG is sky). */}
+            <div data-pot-enter className="max-md:-mt-[16%]">
+              <div className="depth-pot">
+                <div data-tilt>
+                  <Pot ref={potRef} items={selected} count={count} over={dropReady} />
+                </div>
               </div>
-            </div>
-            <div className="md:absolute md:inset-x-[-4rem] md:top-full">
-              <PotChips selected={selected} onRemove={removeChip} />
+              <div className="pointer-events-auto md:absolute md:inset-x-[-4rem] md:top-full">
+                <PotChips selected={selected} onRemove={removeChip} />
+              </div>
             </div>
           </div>
         </div>
