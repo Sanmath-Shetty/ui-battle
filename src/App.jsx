@@ -5,7 +5,11 @@ import { useGSAP } from '@gsap/react'
 import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
 import Browse from './components/Browse.jsx'
+import Favorites from './components/Favorites.jsx'
+import Footer from './components/Footer.jsx'
+import RecipeModal from './components/RecipeModal.jsx'
 import { recipes } from './data/recipes.js'
+import { useFavorites } from './hooks/useFavorites.js'
 import { matchRecipes } from './utils/matchRecipes.js'
 
 gsap.registerPlugin(ScrollTrigger, useGSAP)
@@ -13,6 +17,8 @@ gsap.registerPlugin(ScrollTrigger, useGSAP)
 export default function App() {
   // Shared with Hero and RadarFinder. Single source of truth for the pantry.
   const [selected, setSelected] = useState([])
+  const [openRecipe, setOpenRecipe] = useState(null)
+  const { favoriteIds, toggleFavorite } = useFavorites()
 
   const toggleIngredient = useCallback((name) => {
     setSelected((current) => (current.includes(name) ? current.filter((n) => n !== name) : [...current, name]))
@@ -22,11 +28,22 @@ export default function App() {
 
   return (
     <>
-      <Navbar />
+      <Navbar favoritesCount={favoriteIds.length} />
       <main className="w-full max-w-full overflow-x-hidden">
         <Hero selected={selected} onToggle={toggleIngredient} matchCount={matches.length} />
-        <Browse recipes={recipes} />
+        <Browse recipes={recipes} onOpenRecipe={setOpenRecipe} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
+        <Favorites recipes={recipes} favoriteIds={favoriteIds} onOpenRecipe={setOpenRecipe} onToggleFavorite={toggleFavorite} />
       </main>
+      <Footer />
+      {openRecipe && (
+        <RecipeModal
+          key={openRecipe.id}
+          recipe={openRecipe}
+          onClose={() => setOpenRecipe(null)}
+          isFavorite={favoriteIds.includes(openRecipe.id)}
+          onToggleFavorite={toggleFavorite}
+        />
+      )}
     </>
   )
 }

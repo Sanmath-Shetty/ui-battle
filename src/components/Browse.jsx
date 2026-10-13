@@ -20,6 +20,15 @@ const DIETS = [
   { value: 'nonveg', label: 'Non-veg' },
 ]
 
+const CATEGORY_WORDS = { breakfast: 'breakfast', main: 'lunch dinner main', dessert: 'dessert sweet' }
+const DIET_WORDS = { veg: 'veg vegetarian', nonveg: 'non-veg nonveg' }
+
+// Every word typed must appear somewhere in the recipe's name, ingredients, meal or diet.
+function matchesQuery(recipe, query) {
+  const haystack = [recipe.name, ...recipe.ingredients, CATEGORY_WORDS[recipe.category], DIET_WORDS[recipe.diet]].join(' ').toLowerCase()
+  return query.toLowerCase().split(/\s+/).filter(Boolean).every((word) => haystack.includes(word))
+}
+
 const pillBase =
   'inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium outline-none transition-colors duration-500 focus-visible:ring-2 focus-visible:ring-lime'
 
@@ -77,12 +86,34 @@ function DietFilter({ value, onChange }) {
   )
 }
 
+function SearchField({ value, onChange }) {
+  return (
+    <div className="relative w-full md:max-w-sm">
+      <label htmlFor="recipe-search" className="sr-only">Search recipes</label>
+      <svg viewBox="0 0 16 16" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+        <circle cx="7" cy="7" r="4.5" />
+        <path d="m10.5 10.5 3 3" strokeLinecap="round" />
+      </svg>
+      <input
+        id="recipe-search"
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Search by dish or ingredient"
+        autoComplete="off"
+        className="h-12 w-full rounded-full bg-surface pl-11 pr-5 text-sm text-cream outline-none ring-1 ring-cream/10 transition-shadow duration-500 placeholder:text-muted/70 focus:ring-2 focus:ring-lime/60 md:text-base"
+      />
+    </div>
+  )
+}
+
 export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onToggleFavorite }) {
   const root = useRef(null)
   const [category, setCategory] = useState('all')
   const [diet, setDiet] = useState('all')
+  const [query, setQuery] = useState('')
 
-  const inDiet = recipes.filter((recipe) => diet === 'all' || recipe.diet === diet)
+  const inDiet = recipes.filter((recipe) => (diet === 'all' || recipe.diet === diet) && matchesQuery(recipe, query))
   const visible = inDiet.filter((recipe) => category === 'all' || recipe.category === category)
   const counts = Object.fromEntries(
     CATEGORIES.map(({ value }) => [value, value === 'all' ? inDiet.length : inDiet.filter((r) => r.category === value).length]),
@@ -91,6 +122,7 @@ export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onTogg
   const clearFilters = () => {
     setCategory('all')
     setDiet('all')
+    setQuery('')
   }
 
   // Cards rise in on first scroll and again whenever the filters change.
@@ -121,7 +153,11 @@ export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onTogg
           Not sure what is in the fridge yet? Start with the meal you are in the mood for and narrow it down from there.
         </p>
 
-        <div className="mt-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="mt-10">
+          <SearchField value={query} onChange={setQuery} />
+        </div>
+
+        <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <CategoryTabs value={category} onChange={setCategory} counts={counts} />
           <DietFilter value={diet} onChange={setDiet} />
         </div>
@@ -131,7 +167,7 @@ export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onTogg
         </p>
 
         {visible.length > 0 ? (
-          <ul className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+          <ul className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {visible.map((recipe) => (
               <li key={recipe.id} data-card>
                 <RecipeCard
@@ -146,13 +182,13 @@ export default function Browse({ recipes, onOpenRecipe, favoriteIds = [], onTogg
         ) : (
           <div className="mt-5 rounded-2xl bg-surface px-6 py-14 text-center ring-1 ring-cream/10">
             <p className="font-display text-2xl font-semibold text-cream">Nothing on the radar here.</p>
-            <p className="mt-2 text-sm text-muted">No recipe matches that meal and diet together.</p>
+            <p className="mt-2 text-sm text-muted">{query.trim() ? `No recipe matches “${query.trim()}” with these filters.` : 'No recipe matches that meal and diet together.'}</p>
             <button
               type="button"
               onClick={clearFilters}
               className={`${pillBase} mt-6 bg-cream/10 text-cream hover:bg-cream/15`}
             >
-              Clear filters
+              Clear search and filters
             </button>
           </div>
         )}
